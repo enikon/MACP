@@ -141,7 +141,7 @@ class NReplayBuffer(object):
         for i in range(self._cells):
             arr_cell.append(np.array(cell[i]))
 
-        return *arr_cell,
+        return tuple(arr_cell)
 
     def make_index(self, batch_size):
         return [random.randint(0, len(self._storage) - 1) for _ in range(batch_size)]
