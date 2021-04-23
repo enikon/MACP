@@ -12,11 +12,12 @@ class Experiment(object):
     def __init__(self, environment, trainer, args=None):
         print("PID: ", str(os.getpid()))
 
+        self.args = self.parser().parse_args() if args is None else args
+
         self.trainer = trainer
-        self.environment = environment
+        self.environment = environment()
         self.environment_info = {}
 
-        self.args = self.parser().parse_args() if args is None else args
 
         #################
         # Training type #
@@ -180,7 +181,7 @@ class Experiment(object):
     def parser():
         parser = argparse.ArgumentParser("Reinforcement Learning experiments for multiagent environments")
         # Environment
-        parser.add_argument("--scenario", type=str, default="simple_spread", help="name of the scenario script")
+        parser.add_argument("--scenario", type=str, default="simple_spread_random", help="name of the scenario script")
         parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
         parser.add_argument("--num-episodes", type=int, default=60000, help="number of episodes")
 

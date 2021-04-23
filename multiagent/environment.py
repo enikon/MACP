@@ -226,13 +226,34 @@ class MultiAgentEnv(gym.Env):
             from multiagent import rendering
             self.render_geoms = []
             self.render_geoms_xform = []
+
+            agentcnt = 0
+            landmarkcnt = 0
             for entity in self.world.entities:
                 geom = rendering.make_circle(entity.size)
                 xform = rendering.Transform()
+                color = entity.color
                 if 'agent' in entity.name:
-                    geom.set_color(*entity.color, alpha=0.5)
+                    if agentcnt == 0:
+                        color = np.array([0.35, 0.35, 0.85])
+                    elif agentcnt == 1:
+                        color = np.array([0.55, 0.15, 0.85])
+                    elif agentcnt == 2:
+                        color = np.array([0.15, 0.55, 0.85])
+                    agentcnt += 1
                 else:
-                    geom.set_color(*entity.color)
+                    if landmarkcnt == 0:
+                        color = np.array([0.05, 0.55, 0.25])
+                    elif landmarkcnt == 1:
+                        color = np.array([0.55, 0.05, 0.25])
+                    elif landmarkcnt == 2:
+                        color = np.array([0.25, 0.25, 0.25])
+                    landmarkcnt += 1
+
+                if 'agent' in entity.name:
+                    geom.set_color(*color, alpha=0.5)
+                else:
+                    geom.set_color(*color)
                 geom.add_attr(xform)
                 self.render_geoms.append(geom)
                 self.render_geoms_xform.append(xform)

@@ -11,9 +11,12 @@ class MDMADDPGExperiment(Experiment):
         self.memory_a = None
 
         super(MDMADDPGExperiment, self).__init__(
-            scenario_environment(),
+            __get_env,
             MDMADDPGTrainer
         )
+
+    def __get_env(self):
+        return scenario_environment(scenario_name=self.args.scenario)
 
     def parser(self):
         parser = super().parser()

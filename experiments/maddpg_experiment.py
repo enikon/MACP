@@ -7,9 +7,12 @@ from maddpg.common.replay_buffer import NReplayBuffer
 class MADDPGExperiment(Experiment):
     def __init__(self):
         super(MADDPGExperiment, self).__init__(
-            scenario_environment(),
+            self.__get_env,
             MADDPGTrainer
         )
+
+    def __get_env(self):
+        return scenario_environment(scenario_name=self.args.scenario)
 
     def init_loop(self):
         pass
