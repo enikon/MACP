@@ -11,7 +11,7 @@ class MDMADDPGExperiment(Experiment):
         self.memory_a = None
 
         super(MDMADDPGExperiment, self).__init__(
-            __get_env,
+            self.__get_env,
             MDMADDPGTrainer
         )
 
