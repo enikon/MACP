@@ -13,11 +13,11 @@ class MADDPGTrainer(Trainer):
         self.agent_index = agent_index
         self.args = args
 
-        self.actor = Actor(act_space=act_space)
-        self.target_actor = Actor(act_space=act_space)
+        self.actor = Actor(act_space=act_space, args=args)
+        self.target_actor = Actor(act_space=act_space, args=args)
 
-        self.critic = Critic()
-        self.target_critic = Critic()
+        self.critic = Critic(args=args)
+        self.target_critic = Critic(args=args)
 
     def model_save_dict(self):
         return {

@@ -98,6 +98,7 @@ class Experiment(object):
         history = np.zeros((6, len(self.trainers)))
 
         episode_info = np.full((2, self.args.logs_range_collect), np.nan)  # sum of rewards for all agents
+        episode_rewards = np.full((1,self.args.max_episode_len), np.nan)
 
         #########################
         # Specify replay buffer #
@@ -126,6 +127,7 @@ class Experiment(object):
         t_start = time.time()
         p_start = time.time()
         f_start = time.time()
+        d_start = time.time()
 
         running = True
 
@@ -149,6 +151,7 @@ class Experiment(object):
 
             obs_n = new_obs_n
             episode_info[0, episode_number % self.args.logs_range_collect] += rew_n[0]
+            episode_rewards[0, episode_number % self.args.max_episode_len] += rew_n[0]
 
             if done or terminal:
 
@@ -165,11 +168,13 @@ class Experiment(object):
 
                     ep_rew = np.nanmean(episode_info[0])
                     ep_len = np.nanmean(episode_info[1])
+                    ep_last_rew = np.nanmean(episode_rewards[0])
                     ep_time = time.time() - t_start
 
                     with logs_writer.as_default():
                         # Mean of the last collect_rate episodes, collected on every step
                         tf.summary.scalar("01_general/episodes_reward", ep_rew, step=episode_number)
+                        tf.summary.scalar("01_general/last_episode_reward", ep_last_rew, step=episode_number)
                         tf.summary.scalar("01_general/episodes_length", ep_len, step=episode_number)
 
                         tf.summary.scalar("01_general/environment_time", round(ep_time, 3), step=episode_number)
@@ -181,9 +186,11 @@ class Experiment(object):
 
                     t_start = time.time()
 
-                    if not self.args.no_console:
-                        print("steps: {}, episodes: {}, mean episode reward: {}, time: {}".format(
-                            train_step, episode_number, ep_rew, round(ep_time, 3)))
+                if not self.args.no_console and episode_number % self.args.logs_rate_display == 0:
+                    ed_time = time.time() - d_start
+                    print("steps: {}, episodes: {}, mean episode reward: {}, time: {}".format(
+                        train_step, episode_number, np.nanmean(episode_info[0]), round(ed_time, 3)))
+                    d_start = time.time()
 
                 if not self.args.evaluate and episode_number % self.args.save_rate == 0:
                     saver.save()
@@ -253,52 +260,41 @@ class Experiment(object):
         # Environment
         parser.add_argument("--scenario", type=str, default="simple_spread_random", help="name of the scenario script")
         parser.add_argument("--max-episode-len", type=int, default=25, help="maximum episode length")
-        parser.add_argument("--num-episodes", type=int, default=60000, help="number of episodes")
+        parser.add_argument("--num-episodes", type=int, default=None, help="number of episodes")
 
         # Core training parameters
-        parser.add_argument("--lr", type=float, default=1e-2, help="learning rate for Adam optimizer")
+        parser.add_argument("--lr", type=float, default=1e-3, help="learning rate for Adam optimizer")
         parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
-        parser.add_argument("--batch-size", type=int, default=1024,
-                            help="number of episodes to optimize at the same time")
-        parser.add_argument("--steps-per-train", type=int, default=100,
-                            help="number of environment steps after which one step of training is performed")
+        parser.add_argument("--batch-size", type=int, default=512, help="number of episodes to optimize at the same time")
+        parser.add_argument("--steps-per-train", type=int, default=100, help="number of environment steps after which one step of training is performed")
 
         # Checkpointing
         parser.add_argument("--exp-name", type=str, default="", help="name of the experiment")
-        parser.add_argument("--save-dir", type=str, default="/tmp/policy/",
-                            help="directory in which training state and model should be saved")
-        parser.add_argument("--save-rate", type=int, default=10000,
-                            help="save model once every time this many episodes are completed")
-        parser.add_argument("--load-dir", type=str, default="",
-                            help="directory in which training state and model are loaded")
+        parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
+        parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many episodes are completed")
+        parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
+
         # Evaluation
         parser.add_argument("--restore", action="store_true", default=False)
         parser.add_argument("--restore-best", action="store_true", default=False)
 
-        parser.add_argument("--skip-best-for-episodes", type=int, default=10000)
+        parser.add_argument("--skip-best-for-episodes", type=int, default=2000)
 
         parser.add_argument("--display", action="store_true", default=False)
         parser.add_argument("--evaluate", action="store_true", default=False)
 
         # Inactive
         # parser.add_argument("--benchmark", action="store_true", default=False)
-        # parser.add_argument("--benchmark-iters", type=int, default=100000,
-        #                     help="number of iterations run for benchmarking")
-        # parser.add_argument("--benchmark-dir", type=str, default="./benchmark_files/",
-        #                     help="directory where benchmark data is saved")
-        # parser.add_argument("--plots-dir", type=str, default="./learning_curves/",
-        #                     help="directory where plot data is saved")
-        #
+        # parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
+        # parser.add_argument("--benchmark-dir", type=str, default="./benchmark_files/", help="directory where benchmark data is saved")
+        # parser.add_argument("--plots-dir", type=str, default="./learning_curves/", help="directory where plot data is saved")
 
         # Logs
-        parser.add_argument("--logs-dir", type=str, default="../../logs_dir/",
-                            help="directory where logs for tensorboard are saved")
-        parser.add_argument("--logs-rate-display", type=int, default=1000,
-                            help="how often log will be displayed")
+        parser.add_argument("--logs-dir", type=str, default="../../logs_dir/", help="directory where logs for tensorboard are saved")
+        parser.add_argument("--logs-rate-display", type=int, default=1000, help="how often log will be displayed")
 
         parser.add_argument("--logs-rate-collect", type=int, default=1000, help="how often logs will be collected")
-        parser.add_argument("--logs-range-collect", type=int, default=2000, help="how many instances will be used for counting averages")
-        # parser.add_argument("--logs-by-step", action="store_true", default=False)
+        parser.add_argument("--logs-range-collect", type=int, default=1000, help="how many instances will be used for counting averages")
         parser.add_argument("--no-console", action="store_true", default=False)
 
         return parser

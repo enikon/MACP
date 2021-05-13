@@ -20,7 +20,8 @@ class MDMADDPGExperiment(Experiment):
 
     def parser(self):
         parser = super().parser()
-        parser.add_argument("--memory-size", type=int, default=64, help="size of the memory buffer for interagent communication")
+        parser.add_argument("--disable-mem", action="store_true", default=False)
+        parser.add_argument("--memory-size", type=int, default=32, help="size of the memory buffer for interagent communication")
         return parser
 
     def init_loop(self):
@@ -40,10 +41,13 @@ class MDMADDPGExperiment(Experiment):
         self.memory_a = []
 
         for i, agent in enumerate(self.trainers):
+            if self.args.disable_mem:
+                self.memory_state_in = self.memory_state_in * 0
+
             act, mem = agent.action(obs_n[i][None], self.memory_state_in[None])
+
             action_n.append(act)
             self.memory_a.append(mem)
-
             self.memory_state_in = mem
         return action_n
 

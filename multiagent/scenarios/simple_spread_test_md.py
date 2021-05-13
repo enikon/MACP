@@ -85,7 +85,10 @@ class Scenario(BaseScenario):
         # get positions of all entities in this agent's reference frame
         entity_pos = []
         for entity in world.landmarks:  # world.entities:
-            entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+            if agent.name == 'agent 0':
+                entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+            else:
+                entity_pos.append(entity.state.p_pos - entity.state.p_pos)
         # entity colors
         entity_color = []
         for entity in world.landmarks:  # world.entities:

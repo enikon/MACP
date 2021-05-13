@@ -4,7 +4,7 @@ from maddpg.common.distributions import make_pdtype
 
 
 class MDActorNetwork(tf.keras.Model):
-    def __init__(self, act_space, mem_units=64, name=""):
+    def __init__(self, act_space, name="", args=None):
         super().__init__(name="MDActorI" + name + "I")
 
         self.act_space = act_space
@@ -12,19 +12,18 @@ class MDActorNetwork(tf.keras.Model):
         self.pd = None
 
         self.output_layer = tf.keras.layers.Dense(act_space.n)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2)
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=args.lr, clipnorm=0.5)
 
-        self.encoder_units = 64
+        self.encoder_units = 64 #512
 
-        self.read_units = 20
+        self.read_units = 64 #128
 
         # MUST BE EQUAL
-        self.memory_units = mem_units
+        self.memory_units = args.memory_size
         self.write_units = self.memory_units
 
-        self.action_units = 32
-        self.attention_units = 16
-        self.critic_units = 64
+        self.action_units = 64 #256
+        self.attention_units = 64 #128
 
         self.action_number = act_space.n
 
