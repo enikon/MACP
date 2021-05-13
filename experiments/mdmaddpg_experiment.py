@@ -21,7 +21,7 @@ class MDMADDPGExperiment(Experiment):
     def parser(self):
         parser = super().parser()
         parser.add_argument("--disable-mem", action="store_true", default=False)
-        parser.add_argument("--memory-size", type=int, default=32, help="size of the memory buffer for interagent communication")
+        parser.add_argument("--memory-size", type=int, default=200, help="size of the memory buffer for interagent communication")
         return parser
 
     def init_loop(self):

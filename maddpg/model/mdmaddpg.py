@@ -14,16 +14,16 @@ class MDActorNetwork(tf.keras.Model):
         self.output_layer = tf.keras.layers.Dense(act_space.n)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=args.lr, clipnorm=0.5)
 
-        self.encoder_units = 64 #512
+        self.encoder_units = 512
 
-        self.read_units = 64 #128
+        self.read_units = 128
 
         # MUST BE EQUAL
         self.memory_units = args.memory_size
         self.write_units = self.memory_units
 
-        self.action_units = 64 #256
-        self.attention_units = 64 #128
+        self.action_units = 256
+        self.attention_units = 128
 
         self.action_number = act_space.n
 
