@@ -33,7 +33,7 @@ class MDMADDPGExperiment(Experiment):
         return NReplayBuffer(int(1e6), 7)
 
     def reset_loop(self):
-        self.memory_state_in = self.memory_init
+        self.memory_state_in = np.random.normal(loc=0.0, scale=1.0, size=(self.args.memory_size, )).astype(np.float32)
 
     def collect_action(self, obs_n):
         # Populate actions, states for all agents
