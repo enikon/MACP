@@ -167,7 +167,7 @@ class Experiment(object):
 
             obs_n = new_obs_n
             episode_info[0, episode_number % self.args.logs_range_collect] += rew_n[0]
-            episode_rewards[0, episode_number % self.args.max_episode_len] += rew_n[0]
+            episode_rewards[0, episode_step % self.args.max_episode_len] = rew_n[0]
 
             if done or terminal:
 
