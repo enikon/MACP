@@ -6,6 +6,9 @@ import numpy as np
 import tensorflow as tf
 import time
 from maddpg.common.tf_util import allow_growth
+from experiments.environmenter import scenario_environment
+
+import json
 
 
 class Experiment(object):
@@ -13,6 +16,12 @@ class Experiment(object):
         print("PID: ", str(os.getpid()))
 
         self.args = self.parser().parse_args() if args is None else args
+        if os.path.exists('default'):
+            with open('default', 'rt') as f:
+                t_args = argparse.Namespace()
+                t_args.__dict__.update(json.load(f))
+                self.args = self.parser().parse_args(namespace=t_args)
+                print('Default file loaded')
 
         self.trainer = trainer
         self.environment = environment()
@@ -27,7 +36,7 @@ class Experiment(object):
         else:
             tf.config.set_visible_devices([], 'GPU')
 
-        # self.args.max_episode_len = 2 # Fast debug
+        #self.args.max_episode_len = 2 # Fast debug
 
         ###################################
         # Specify input and output spaces #
@@ -94,11 +103,18 @@ class Experiment(object):
         # Specify tensorboard parameters #
         ##################################
 
-        logs_writer = tf.summary.create_file_writer(os.path.join(self.args.logs_dir, experiment_full_name))
+        logs_full_path = os.path.join(self.args.logs_dir, experiment_full_name, '')
+        os.makedirs(os.path.dirname(logs_full_path), exist_ok=True)
+
+        #if not self.args.evaluate:
+        with open(os.path.join(logs_full_path, 'config'), 'wt') as f:
+            json.dump(vars(self.args), f, indent=4)
+
+        logs_writer = tf.summary.create_file_writer(logs_full_path)
         history = np.zeros((6, len(self.trainers)))
 
         episode_info = np.full((2, self.args.logs_range_collect), np.nan)  # sum of rewards for all agents
-        episode_rewards = np.full((1,self.args.max_episode_len), np.nan)
+        episode_rewards = np.full((1, self.args.max_episode_len), np.nan)
 
         #########################
         # Specify replay buffer #
@@ -217,6 +233,10 @@ class Experiment(object):
             if self.args.display:
                 time.sleep(0.1)
                 self.environment.render()
+                print('Step: {0}/{1}, Reward: {2}'.format(
+                    (episode_step+self.args.max_episode_len-1)%self.args.max_episode_len+1,
+                    self.args.max_episode_len,
+                    rew_n[0]))
 
             episode_step += 1
 
@@ -290,7 +310,7 @@ class Experiment(object):
         # parser.add_argument("--plots-dir", type=str, default="./learning_curves/", help="directory where plot data is saved")
 
         # Logs
-        parser.add_argument("--logs-dir", type=str, default="../../logs_dir/", help="directory where logs for tensorboard are saved")
+        parser.add_argument("--logs-dir", type=str, default="../logs_dir/", help="directory where logs for tensorboard are saved")
         parser.add_argument("--logs-rate-display", type=int, default=1000, help="how often log will be displayed")
 
         parser.add_argument("--logs-rate-collect", type=int, default=1000, help="how often logs will be collected")
@@ -298,6 +318,9 @@ class Experiment(object):
         parser.add_argument("--no-console", action="store_true", default=False)
 
         return parser
+
+    def get_env(self):
+        return scenario_environment(scenario_name=self.args.scenario)
 
     def init_buffer(self):
         raise NotImplemented()

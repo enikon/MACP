@@ -1,35 +1,35 @@
 from experiments.experiment import *
+from experiments.environmenter import scenario_environment
 from experiments.mdmaddpg_trainer import MDMADDPGTrainer
 from maddpg.common.replay_buffer import NReplayBuffer
 
 
-class MDMADDPGExperiment(Experiment):
+class CommnetExperiment(Experiment):
     def __init__(self):
         self.memory_state_in = None
         self.memory_init = None
         self.memory_a = None
 
-        super(MDMADDPGExperiment, self).__init__(
+        super(CommnetExperiment, self).__init__(
             self.get_env,
-            MDMADDPGTrainer
+            CommnetExperiment
         )
 
     def parser(self):
         parser = super().parser()
-        parser.add_argument("--disable-mem", action="store_true", default=False)
-        parser.add_argument("--memory-size", type=int, default=200, help="size of the memory buffer for interagent communication")
+        parser.add_argument("--disable-comm", action="store_true", default=False)
+        parser.add_argument("--communication_length", type=int, default=20, help="size of the communication vector")
+        parser.add_argument("--communication_steps", type=int, default=3, help="number of communication messages sent")
         return parser
 
     def init_loop(self):
-        # Initialise memory
-        self.memory_state_in = None
-        self.memory_init = np.random.normal(loc=0.0, scale=1.0, size=(self.args.memory_size, )).astype(np.float32)
+        pass
 
     def init_buffer(self):
-        return NReplayBuffer(int(1e4), 7)
+        return NReplayBuffer(int(1e6), 7)
 
     def reset_loop(self):
-        self.memory_state_in = np.random.normal(loc=0.0, scale=1.0, size=(self.args.memory_size, )).astype(np.float32)
+        pass
 
     def collect_action(self, obs_n):
         # Populate actions, states for all agents
@@ -84,5 +84,5 @@ class MDMADDPGExperiment(Experiment):
 
 
 if __name__ == '__main__':
-    MDMADDPGExperiment()
+    CommnetExperiment()
 

@@ -210,7 +210,7 @@ class MultiAgentEnv(gym.Env):
                     else:
                         word = alphabet[np.argmax(other.state.c)]
                     message += (other.name + ' to ' + agent.name + ': ' + word + '   ')
-            print(message)
+            #print(message)
 
         for i in range(len(self.viewers)):
             # create viewers (if necessary)
@@ -238,17 +238,17 @@ class MultiAgentEnv(gym.Env):
                     if agentcnt == 0:
                         color = np.array([0.35, 0.35, 0.85])
                     elif agentcnt == 1:
-                        color = np.array([0.55, 0.15, 0.85])
+                        color = np.array([0.35, 0.85, 0.35])
                     elif agentcnt == 2:
-                        color = np.array([0.15, 0.55, 0.85])
+                        color = np.array([0.85, 0.35, 0.35])
                     agentcnt += 1
                 else:
                     if landmarkcnt == 0:
-                        color = np.array([0.05, 0.55, 0.25])
+                        color = np.array([0.25, 0.25, 0.75])
                     elif landmarkcnt == 1:
-                        color = np.array([0.55, 0.05, 0.25])
+                        color = np.array([0.25, 0.75, 0.25])
                     elif landmarkcnt == 2:
-                        color = np.array([0.25, 0.25, 0.25])
+                        color = np.array([0.75, 0.25, 0.25])
                     landmarkcnt += 1
 
                 if 'agent' in entity.name:

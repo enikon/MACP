@@ -23,7 +23,7 @@ class MDActorNetwork(tf.keras.Model):
         self.write_units = self.memory_units
 
         self.action_units = 256
-        self.attention_units = 128
+        #self.attention_units = 128
 
         self.action_number = act_space.n
 
