@@ -16,11 +16,9 @@
     "skip_best_for_episodes": 2000,
     "display": false,
     "evaluate": false,
-    "logs_dir": "../logs_dir/",
     "logs_rate_display": 1000,
-    "logs_rate_collect": 100,
-    "logs_range_collect": 100,
+    "logs_rate_collect": 5000,
+    "logs_range_collect": 1000,
     "no_console": false,
-    "disable_mem": false,
-    "memory_size": 200
+    "disable_mem": false
 }

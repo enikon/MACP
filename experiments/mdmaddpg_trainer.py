@@ -39,6 +39,12 @@ class MDMADDPGTrainer(Trainer):
         act_n = [tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx()) for i in experience["act_n"]]
         obs_next_n = [tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx()) for i in experience["obs_next_n"]]
 
+        q_loss, p_loss, target_q, target_q_next = self._update(agents, experience, obs_n, memory_n, act_n, obs_next_n)
+        return np.array(
+            [q_loss, p_loss, np.mean(target_q), np.mean(experience["rew"]), np.mean(target_q_next), np.std(target_q)])
+
+    @tf.function
+    def _update(self, agents, experience, obs_n, memory_n, act_n, obs_next_n):
         cct_obs, cct_act = tf.concat(obs_n, -1), tf.concat(act_n, -1)
         cct_obs_next = tf.concat(obs_next_n, -1)
 
@@ -62,8 +68,9 @@ class MDMADDPGTrainer(Trainer):
 
         with tf.GradientTape() as tape_p:
             act_a, _, act_pd = self.actor.sample_reg(experience["obs"], experience["mem"])
-            act_n[self.agent_index] = act_a
-            q = self.critic.eval(tf.concat((cct_obs, tf.concat(act_n, -1)), -1))
+            act_n_new = [a for a in act_n]
+            act_n_new[self.agent_index] = act_a
+            q = self.critic.eval(tf.concat((cct_obs, tf.concat(act_n_new, -1)), -1))
 
             p_reg = tf.reduce_mean(tf.square(act_pd))
             p_loss = -tf.reduce_mean(q) + p_reg * 1e-3
@@ -73,4 +80,4 @@ class MDMADDPGTrainer(Trainer):
         update_target(self.actor, self.target_actor)
         update_target(self.critic, self.target_critic)
 
-        return np.array([q_loss, p_loss, np.mean(target_q), np.mean(experience["rew"]), np.mean(target_q_next), np.std(target_q)])
+        return q_loss, p_loss, target_q, target_q_next

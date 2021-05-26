@@ -7,7 +7,8 @@ class MADDPGExperiment(Experiment):
     def __init__(self):
         super(MADDPGExperiment, self).__init__(
             self.get_env,
-            MADDPGTrainer
+            MADDPGTrainer,
+            'maddpg'
         )
 
     def init_loop(self):

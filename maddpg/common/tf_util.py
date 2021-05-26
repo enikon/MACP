@@ -28,16 +28,26 @@ def softmax(x, axis=None):
 #############
 
 
+@tf.function
 def clipnorm(grad, norm=0.5):
     return [tf.clip_by_norm(g,norm) for g in grad]
 
 
+@tf.function
 def update_target(model, target_model):
     polyak = 1.0 - 1e-2
-    new_weight = np.array(model.get_weights(), dtype=object)
-    old_weight = np.array(target_model.get_weights(), dtype=object)
-    target_model.set_weights(polyak * old_weight + (1 - polyak) * new_weight)
+    new_weight = model.weights
+    old_weight = target_model.weights
+    for n, o in zip(new_weight, old_weight):
+        tf.stop_gradient(
+            o.assign(polyak * o + (1 - polyak) * n)
+        )
 
+
+@tf.function
+def sample_soft(x):
+    u = tf.random.uniform(tf.shape(input=x))
+    return tf.nn.softmax(x - tf.math.log(-tf.math.log(u)), axis=-1)
 
 ###################
 # Troubleshooting #

@@ -11,13 +11,17 @@ class MDMADDPGExperiment(Experiment):
 
         super(MDMADDPGExperiment, self).__init__(
             self.get_env,
-            MDMADDPGTrainer
+            MDMADDPGTrainer,
+            'md'
         )
 
     def parser(self):
         parser = super().parser()
         parser.add_argument("--disable-mem", action="store_true", default=False)
         parser.add_argument("--memory-size", type=int, default=200, help="size of the memory buffer for interagent communication")
+        parser.add_argument("--encoder-units", type=int, default=512, help="---")
+        parser.add_argument("--read-units", type=int, default=128, help="---")
+        parser.add_argument("--action-units", type=int, default=256, help="---")
         return parser
 
     def init_loop(self):
@@ -26,7 +30,7 @@ class MDMADDPGExperiment(Experiment):
         self.memory_init = np.random.normal(loc=0.0, scale=1.0, size=(self.args.memory_size, )).astype(np.float32)
 
     def init_buffer(self):
-        return NReplayBuffer(int(1e4), 7)
+        return NReplayBuffer(int(1e6), 7)
 
     def reset_loop(self):
         self.memory_state_in = np.random.normal(loc=0.0, scale=1.0, size=(self.args.memory_size, )).astype(np.float32)

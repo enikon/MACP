@@ -1,6 +1,7 @@
 import tensorflow as tf
 
 from maddpg.common.distributions import make_pdtype
+from maddpg.common.tf_util import sample_soft
 
 
 class MDActorNetwork(tf.keras.Model):
@@ -14,16 +15,15 @@ class MDActorNetwork(tf.keras.Model):
         self.output_layer = tf.keras.layers.Dense(act_space.n)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=args.lr, clipnorm=0.5)
 
-        self.encoder_units = 512
+        self.encoder_units = args.encoder_units #512
 
-        self.read_units = 128
+        self.read_units = args.read_units #128
 
         # MUST BE EQUAL
         self.memory_units = args.memory_size
         self.write_units = self.memory_units
 
-        self.action_units = 256
-        #self.attention_units = 128
+        self.action_units = args.action_units #256
 
         self.action_number = act_space.n
 
@@ -67,16 +67,14 @@ class MDActorNetwork(tf.keras.Model):
     @tf.function
     def sample(self, obs, mem):
         p, m = self.call(obs, mem)
-        tf_action = self.act_pd.pdfromflat(p).sample()
+        tf_action = sample_soft(p)
         return tf_action, m
 
     @tf.function
     def sample_reg(self, obs, mem):
         p, m = self.call(obs, mem)
-        pd = self.act_pd.pdfromflat(p)
-        tf_action = pd.sample()
-        tf_logits = pd.flatparam()
-        return tf_action, m, tf_logits
+        tf_action = sample_soft(p)
+        return tf_action, m, p
 
     @tf.function
     def raw(self, obs, mem):

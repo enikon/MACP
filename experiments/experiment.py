@@ -12,16 +12,32 @@ import json
 
 
 class Experiment(object):
-    def __init__(self, environment, trainer, args=None):
+    def __init__(self, environment, trainer, name, args=None):
         print("PID: ", str(os.getpid()))
+        self.name = name
+
+        ######################
+        # Reading parameters #
+        ######################
 
         self.args = self.parser().parse_args() if args is None else args
+        t_args = argparse.Namespace()
+
         if os.path.exists('default'):
             with open('default', 'rt') as f:
-                t_args = argparse.Namespace()
                 t_args.__dict__.update(json.load(f))
-                self.args = self.parser().parse_args(namespace=t_args)
                 print('Default file loaded')
+
+        if self.args.config is not None and os.path.exists(self.args.config):
+            with open(self.args.config, 'rt') as f:
+                t_args.__dict__.update(json.load(f))
+                print('Config file loaded')
+        self.args = self.parser().parse_args(namespace=t_args)
+
+
+        #####################
+        # Initialise fields #
+        #####################
 
         self.trainer = trainer
         self.environment = environment()
@@ -63,9 +79,14 @@ class Experiment(object):
         experiment_full_name =\
             ('' if self.args.exp_name == '' else self.args.exp_name+'_') + \
             ('train_' if not self.args.evaluate else 'eval_') + \
+            (str(self.name)+'_') + \
             datetime_str
 
-        os.makedirs(os.path.dirname(self.args.logs_dir), exist_ok=True)
+        experiment_direction = os.path.join(self.args.save_dir, experiment_full_name, '')
+        os.makedirs(os.path.dirname(experiment_direction), exist_ok=True)
+
+        with open(os.path.join(experiment_direction, 'config'), 'wt') as f:
+            json.dump(vars(self.args), f, indent=4)
 
         nets = {}
         for i, trainer in enumerate(self.trainers):
@@ -75,11 +96,14 @@ class Experiment(object):
         _saver = tf.train.Checkpoint(**nets, step=tf.Variable(0))
         _best_saver = tf.train.Checkpoint(**nets, step=_saver.step)
 
-        save_last_dir = os.path.join(self.args.save_dir, 'last')
-        save_best_dir = os.path.join(self.args.save_dir, 'best')
+        save_last_dir = os.path.join(experiment_direction, 'last')
+        save_best_dir = os.path.join(experiment_direction, 'best')
+        save_logs_dir = os.path.join(experiment_direction, 'logs', '')
+        save_profile_dir = os.path.join(experiment_direction, 'profile', '')
 
         saver = tf.train.CheckpointManager(_saver, save_last_dir, max_to_keep=3)
         best_saver = tf.train.CheckpointManager(_best_saver, save_best_dir, max_to_keep=3, checkpoint_name='best_ckpt')
+        os.makedirs(os.path.dirname(save_logs_dir), exist_ok=True)
 
         # Load previous results, if necessary
         if self.args.load_dir == "":
@@ -103,14 +127,7 @@ class Experiment(object):
         # Specify tensorboard parameters #
         ##################################
 
-        logs_full_path = os.path.join(self.args.logs_dir, experiment_full_name, '')
-        os.makedirs(os.path.dirname(logs_full_path), exist_ok=True)
-
-        #if not self.args.evaluate:
-        with open(os.path.join(logs_full_path, 'config'), 'wt') as f:
-            json.dump(vars(self.args), f, indent=4)
-
-        logs_writer = tf.summary.create_file_writer(logs_full_path)
+        logs_writer = tf.summary.create_file_writer(save_logs_dir)
         history = np.zeros((6, len(self.trainers)))
 
         episode_info = np.full((2, self.args.logs_range_collect), np.nan)  # sum of rewards for all agents
@@ -147,6 +164,11 @@ class Experiment(object):
 
         running = True
 
+        profiling = 0
+        if self.args.profile:
+            from tensorflow.python.profiler import profiler_v2 as profiler
+            profiler.warmup()
+
         while running:
 
             #################
@@ -163,7 +185,8 @@ class Experiment(object):
 
             # collect experience
             if not self.args.evaluate:
-                self.collect_experience(obs_n, action_n, rew_n, new_obs_n, done_n, terminal)
+                self.collect_experience(obs_n, action_n, np.array(rew_n).astype(np.float32), new_obs_n,
+                                        np.array(done_n).astype(np.float32), terminal)
 
             obs_n = new_obs_n
             episode_info[0, episode_number % self.args.logs_range_collect] += rew_n[0]
@@ -198,7 +221,7 @@ class Experiment(object):
                         tf.summary.scalar("09_extra/episodes_reward_in_steps", ep_rew, step=train_step)
                         tf.summary.scalar("09_extra/episodes_length_in_steps", ep_len, step=train_step)
 
-                    logs_writer.flush()
+                    #logs_writer.flush()
 
                     t_start = time.time()
 
@@ -234,7 +257,7 @@ class Experiment(object):
                 time.sleep(0.1)
                 self.environment.render()
                 print('Step: {0}/{1}, Reward: {2}'.format(
-                    (episode_step+self.args.max_episode_len-1)%self.args.max_episode_len+1,
+                    (episode_step+self.args.max_episode_len-1) % self.args.max_episode_len+1,
                     self.args.max_episode_len,
                     rew_n[0]))
 
@@ -268,7 +291,16 @@ class Experiment(object):
                         tf.summary.scalar("02_train/target_q_std", metrics[5], step=train_step)
                         tf.summary.scalar("01_general/train_time", round(time.time() - p_start, 3), step=train_step)
                         p_start = time.time()
-                    logs_writer.flush()
+                    # logs_writer.flush()
+
+            if self.args.profile:
+                if episode_number >= 3000 and profiling == 0:
+                    profiling = 1
+                    profiler.start(logdir=save_profile_dir)
+
+                if episode_number >= 3100 and profiling == 1:
+                    profiling = 2
+                    profiler.stop()
 
     @staticmethod
     def parser():
@@ -276,6 +308,7 @@ class Experiment(object):
 
         # Computing
         parser.add_argument("--GPU", action="store_true", default=False)
+        parser.add_argument("--profile", action="store_true", default=False)
 
         # Environment
         parser.add_argument("--scenario", type=str, default="simple_spread_random", help="name of the scenario script")
@@ -289,9 +322,10 @@ class Experiment(object):
         parser.add_argument("--steps-per-train", type=int, default=100, help="number of environment steps after which one step of training is performed")
 
         # Checkpointing
+        parser.add_argument("--config", type=str, default=None, help="path to configuration file")
         parser.add_argument("--exp-name", type=str, default="", help="name of the experiment")
         parser.add_argument("--save-dir", type=str, default="/tmp/policy/", help="directory in which training state and model should be saved")
-        parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many episodes are completed")
+        parser.add_argument("--save-rate", type=int, default=5000, help="save model once every time this many episodes are completed")
         parser.add_argument("--load-dir", type=str, default="", help="directory in which training state and model are loaded")
 
         # Evaluation
@@ -310,7 +344,7 @@ class Experiment(object):
         # parser.add_argument("--plots-dir", type=str, default="./learning_curves/", help="directory where plot data is saved")
 
         # Logs
-        parser.add_argument("--logs-dir", type=str, default="../logs_dir/", help="directory where logs for tensorboard are saved")
+        #parser.add_argument("--logs-dir", type=str, default="../logs_dir/", help="directory where logs for tensorboard are saved")
         parser.add_argument("--logs-rate-display", type=int, default=1000, help="how often log will be displayed")
 
         parser.add_argument("--logs-rate-collect", type=int, default=1000, help="how often logs will be collected")

@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from maddpg.common.distributions import make_pdtype
+from maddpg.common.tf_util import sample_soft
 
 
 class MLP_Model(tf.keras.Model):
@@ -82,16 +83,14 @@ class Actor(tf.keras.Model):
     @tf.function
     def sample(self, obs):
         p = self.call(obs)
-        tf_action = self.act_pd.pdfromflat(p).sample()
+        tf_action = sample_soft(p)
         return tf_action
 
     @tf.function
     def sample_reg(self, obs):
         p = self.call(obs)
-        pd = self.act_pd.pdfromflat(p)
-        tf_action = pd.sample()
-        tf_logits = pd.flatparam()
-        return tf_action, tf_logits
+        tf_action = sample_soft(p)
+        return tf_action, p
 
     @tf.function
     def raw(self, obs):

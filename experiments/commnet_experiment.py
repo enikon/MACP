@@ -1,6 +1,4 @@
 from experiments.experiment import *
-from experiments.environmenter import scenario_environment
-from experiments.mdmaddpg_trainer import MDMADDPGTrainer
 from maddpg.common.replay_buffer import NReplayBuffer
 
 
@@ -12,7 +10,8 @@ class CommnetExperiment(Experiment):
 
         super(CommnetExperiment, self).__init__(
             self.get_env,
-            CommnetExperiment
+            CommnetExperiment,
+            name='commnet'
         )
 
     def parser(self):
