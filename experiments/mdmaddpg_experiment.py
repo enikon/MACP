@@ -17,7 +17,7 @@ class MDMADDPGExperiment(Experiment):
 
     def parser(self):
         parser = super().parser()
-        parser.add_argument("--disable-mem", action="store_true", default=False)
+        parser.add_argument("--disable-comm", action="store_true", default=False)
         parser.add_argument("--memory-size", type=int, default=200, help="size of the memory buffer for interagent communication")
         parser.add_argument("--encoder-units", type=int, default=512, help="---")
         parser.add_argument("--read-units", type=int, default=128, help="---")
@@ -85,6 +85,19 @@ class MDMADDPGExperiment(Experiment):
             "obs_next": obs_next,
             "done": done
         }
+
+    def get_trainers(self):
+        return [
+            self.trainer(
+                "agent_%d" % i,
+                self.environment.n,
+                self.environment.observation_space[i].shape,
+                self.environment.action_space[i],
+                i,
+                self.args
+            )
+            for i in range(self.environment.n)
+        ]
 
 
 if __name__ == '__main__':

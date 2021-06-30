@@ -49,6 +49,7 @@ class MADDPGTrainer(Trainer):
         target_q_next = None
 
         for i in range(num_sample):
+            #TODO target_actor.not_sample ?
             target_act_next_a_n = [agents[i].target_actor.sample(obs_next_n[i]) for i in range(self.n)]
             # target_act_next_a_n = tf.map_fn(lambda o: self.target_actor.mode(o), elems=tf_obs_next_n)
             target_q_next = self.target_critic.eval1(
@@ -64,13 +65,13 @@ class MADDPGTrainer(Trainer):
         self.critic.optimizer.apply_gradients(zip(clipnorm(critic_grad, 0.5), self.critic.trainable_weights))
 
         with tf.GradientTape() as tape_p:
+            # TODO actor.not_sample ?
             act_a, act_pd = self.actor.sample_reg(experience["obs"])
-            #u = tf.one_hot([self.agent_index], 1)
             act_n_new = [a for a in act_n]
             act_n_new[self.agent_index] = act_a
             q = self.critic.eval(tf.concat((cct_obs, tf.concat(act_n_new, -1)), -1))
-
             p_reg = tf.reduce_mean(tf.square(act_pd))
+
             p_loss = -tf.reduce_mean(q) + p_reg * 1e-3
         actor_grad = tape_p.gradient(p_loss, self.actor.trainable_weights)
         self.actor.optimizer.apply_gradients(zip(clipnorm(actor_grad, 0.5), self.actor.trainable_weights))

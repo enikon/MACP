@@ -54,6 +54,19 @@ class MADDPGExperiment(Experiment):
             "done": done
         }
 
+    def get_trainers(self):
+        return [
+            self.trainer(
+                "agent_%d" % i,
+                self.environment.n,
+                self.environment.observation_space[i].shape,
+                self.environment.action_space[i],
+                i,
+                self.args
+            )
+            for i in range(self.environment.n)
+        ]
+
 
 if __name__ == '__main__':
     MADDPGExperiment()

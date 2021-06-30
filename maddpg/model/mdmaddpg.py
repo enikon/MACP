@@ -55,7 +55,7 @@ class MDActorNetwork(tf.keras.Model):
         #WRITE
         concat_before_write_out = tf.concat([obs_encode_out, memory], axis=-1)
         write_out = self.write_layer(concat_before_write_out)
-        memory_new_out = self.remember_layer(obs_encode_out) * write_out + self.forget_layer(obs_encode_out) * memory
+        memory_new_out = self.remember_layer(concat_before_write_out) * write_out + self.forget_layer(concat_before_write_out) * memory
 
         #ACTION
         concat = tf.concat([obs_encode_out, read_info_out, memory_new_out], axis=-1)

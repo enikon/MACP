@@ -34,7 +34,6 @@ class Experiment(object):
                 print('Config file loaded')
         self.args = self.parser().parse_args(namespace=t_args)
 
-
         #####################
         # Initialise fields #
         #####################
@@ -58,17 +57,7 @@ class Experiment(object):
         # Specify input and output spaces #
         ###################################
 
-        self.trainers = [
-            self.trainer(
-                "agent_%d" % i,
-                self.environment.n,
-                self.environment.observation_space[i].shape,
-                self.environment.action_space[i],
-                i,
-                self.args
-            )
-            for i in range(self.environment.n)
-        ]
+        self.trainers = self.get_trainers()
 
         #############################
         # Specify saving parameters #
@@ -137,9 +126,9 @@ class Experiment(object):
         # Specify replay buffer #
         #########################
 
-        self.replay_buffer_n = [self.init_buffer() for _ in range(self.environment.n)]
+        self.replay_buffer_n = [self.init_buffer() for _ in range(len(self.trainers))]
         self.max_replay_buffer_len = self.args.batch_size * self.args.max_episode_len
-        self.replay_sample_index = [None for _ in range(self.environment.n)]
+        self.replay_sample_index = [None for _ in range(len(self.trainers))]
 
         ##########################################
         # Initialise environment and observation #
@@ -150,6 +139,7 @@ class Experiment(object):
         obs_n = self.environment.reset()
         episode_step = 0
         episode_number = 0
+        update_number = 0
 
         tf_train_step = _saver.step
         train_step = tf_train_step.numpy()
@@ -207,7 +197,7 @@ class Experiment(object):
 
                     ep_rew = np.nanmean(episode_info[0])
                     ep_len = np.nanmean(episode_info[1])
-                    ep_last_rew = np.nanmean(episode_rewards[0])
+                    ep_last_rew = np.nansum(episode_rewards[0])
                     ep_time = time.time() - t_start
 
                     with logs_writer.as_default():
@@ -260,6 +250,12 @@ class Experiment(object):
                     (episode_step+self.args.max_episode_len-1) % self.args.max_episode_len+1,
                     self.args.max_episode_len,
                     rew_n[0]))
+                if (episode_step + self.args.max_episode_len - 1) % self.args.max_episode_len + 1 == self.args.max_episode_len :
+                    print('---------------------------')
+                    print('Reward: {0}, Avg reward: {1}'.format(
+                        np.nansum(episode_rewards[0]),
+                        np.nanmean(episode_info[0])))
+                    print('---------------------------')
 
             episode_step += 1
 
@@ -272,16 +268,20 @@ class Experiment(object):
             #########
             loss = None
 
+            # TODO set max buffer size and inital buffer size as params
             if len(self.replay_buffer_n[0]) >= self.max_replay_buffer_len \
                     and train_step % self.args.steps_per_train == 0:
                 # Fill replay buffer
 
+                update_number += 1
+
                 for i, agent in enumerate(self.trainers):
                     exp = self.train_experience(self.replay_buffer_n[i])
                     loss = agent.update(self.trainers, exp)
-                    history[:, i] = loss
+                    if loss is not None:
+                        history[:, i] = loss
 
-                if loss is not None:
+                if train_step % self.args.logs_rate_collect == 0:
                     metrics = np.mean(history, axis=-1)
                     with logs_writer.as_default():
                         tf.summary.scalar("02_train/q_loss", metrics[0], step=train_step)
@@ -355,6 +355,9 @@ class Experiment(object):
 
     def get_env(self):
         return scenario_environment(scenario_name=self.args.scenario)
+
+    def get_trainers(self):
+        raise NotImplemented()
 
     def init_buffer(self):
         raise NotImplemented()

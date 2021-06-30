@@ -1,11 +1,11 @@
 {
     "GPU": false,
-    "scenario": "simple_reference_3_direction",
+    "scenario": "simple_reference_3",
     "max_episode_len": 25,
     "num_episodes": null,
     "lr": 0.001,
     "gamma": 0.95,
-    "batch_size": 512,
+    "batch_size": 64,
     "steps_per_train": 100,
     "exp_name": "",
     "save_dir": "/tmp/policy/",
@@ -17,7 +17,7 @@
     "display": false,
     "evaluate": false,
     "logs_rate_display": 1000,
-    "logs_rate_collect": 5000,
+    "logs_rate_collect": 500,
     "logs_range_collect": 1000,
     "no_console": false,
     "disable_mem": false

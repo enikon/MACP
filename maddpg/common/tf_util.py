@@ -35,7 +35,7 @@ def clipnorm(grad, norm=0.5):
 
 @tf.function
 def update_target(model, target_model):
-    polyak = 1.0 - 1e-2
+    polyak = 1.0 - 5e-3
     new_weight = model.weights
     old_weight = target_model.weights
     for n, o in zip(new_weight, old_weight):
@@ -48,6 +48,21 @@ def update_target(model, target_model):
 def sample_soft(x):
     u = tf.random.uniform(tf.shape(input=x))
     return tf.nn.softmax(x - tf.math.log(-tf.math.log(u)), axis=-1)
+
+#TODO ADD eps : tf.nn.softmax(x - tf.math.log(-tf.math.log(u +eps)+eps), axis=-1)
+#TODO ADD temp :tf.nn.softmax((x - tf.math.log(-tf.math.log(u)))/temp, axis=-1)
+#TODO ADD nogumbel for eval :tf.nn.softmax(x, axis=-1)
+#TODO ADD ornstein uhlenbeck instead of u = tf.random.uniform(tf.shape(input=x))
+
+@tf.function
+def sample_log(x):
+    u = tf.random.uniform(tf.shape(input=x))
+    return x - tf.math.log(-tf.math.log(u))
+
+
+@tf.function
+def soft(x):
+    return tf.nn.softmax(x, axis=-1)
 
 ###################
 # Troubleshooting #
