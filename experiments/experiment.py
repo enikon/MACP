@@ -63,25 +63,30 @@ class Experiment(object):
         # Specify saving parameters #
         #############################
 
-        datetime_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.saving_enabled = not self.args.display
 
+        # Create experiment name
+        datetime_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         experiment_full_name =\
             ('' if self.args.exp_name == '' else self.args.exp_name+'_') + \
             ('train_' if not self.args.evaluate else 'eval_') + \
             (str(self.name)+'_') + \
             datetime_str
-
         experiment_direction = os.path.join(self.args.save_dir, experiment_full_name, '')
-        os.makedirs(os.path.dirname(experiment_direction), exist_ok=True)
 
-        with open(os.path.join(experiment_direction, 'config'), 'wt') as f:
-            json.dump(vars(self.args), f, indent=4)
+        # Save config file
+        if self.saving_enabled:
+            os.makedirs(os.path.dirname(experiment_direction), exist_ok=True)
+            with open(os.path.join(experiment_direction, 'config'), 'wt') as f:
+                json.dump(vars(self.args), f, indent=4)
 
+        # Define networks save dictionary
         nets = {}
         for i, trainer in enumerate(self.trainers):
             for k, v in trainer.model_save_dict().items():
                 nets[k + str(i)] = v
 
+        # Define checkpoints and directories
         _saver = tf.train.Checkpoint(**nets, step=tf.Variable(0))
         _best_saver = tf.train.Checkpoint(**nets, step=_saver.step)
 
@@ -92,7 +97,9 @@ class Experiment(object):
 
         saver = tf.train.CheckpointManager(_saver, save_last_dir, max_to_keep=3)
         best_saver = tf.train.CheckpointManager(_best_saver, save_best_dir, max_to_keep=3, checkpoint_name='best_ckpt')
-        os.makedirs(os.path.dirname(save_logs_dir), exist_ok=True)
+
+        if self.saving_enabled:
+            os.makedirs(os.path.dirname(save_logs_dir), exist_ok=True)
 
         # Load previous results, if necessary
         if self.args.load_dir == "":
@@ -116,11 +123,16 @@ class Experiment(object):
         # Specify tensorboard parameters #
         ##################################
 
-        logs_writer = tf.summary.create_file_writer(save_logs_dir)
+        if self.saving_enabled:
+            logs_writer = tf.summary.create_file_writer(save_logs_dir)
+
         history = np.zeros((6, len(self.trainers)))
 
         episode_info = np.full((2, self.args.logs_range_collect), np.nan)  # sum of rewards for all agents
         episode_rewards = np.full((1, self.args.max_episode_len), np.nan)
+
+        episode_info[0, 0] = 0
+        episode_info[1, 0] = 0
 
         #########################
         # Specify replay buffer #
@@ -154,6 +166,7 @@ class Experiment(object):
 
         running = True
 
+        # Profiling if enabled
         profiling = 0
         if self.args.profile:
             from tensorflow.python.profiler import profiler_v2 as profiler
@@ -193,7 +206,7 @@ class Experiment(object):
                 episode_step = 0
 
                 # Printing
-                if episode_number % self.args.logs_rate_collect == 0:
+                if episode_number % self.args.logs_rate_collect == 0 and self.saving_enabled:
 
                     ep_rew = np.nanmean(episode_info[0])
                     ep_len = np.nanmean(episode_info[1])
@@ -221,7 +234,7 @@ class Experiment(object):
                         train_step, episode_number, np.nanmean(episode_info[0]), round(ed_time, 3)))
                     d_start = time.time()
 
-                if not self.args.evaluate and episode_number % self.args.save_rate == 0:
+                if not self.args.evaluate and episode_number % self.args.save_rate == 0 and self.saving_enabled:
                     saver.save()
                     if episode_number >= self.args.skip_best_for_episodes:
                         best_value_candidate = np.nanmean(episode_info[0])
@@ -231,7 +244,7 @@ class Experiment(object):
                             print("Saved best:\n\t steps: {}, episodes: {}, mean episode reward: {}".format(
                                 train_step, episode_number, best_value_candidate))
 
-                if self.args.num_episodes is not None and episode_number >= self.args.num_episodes:
+                if self.args.num_episodes is not None and episode_number >= self.args.num_episodes and self.saving_enabled:
                     saver.save()
                     print("Training completed:\n\t steps: {}, episodes: {}, time: {}".format(
                         train_step, episode_number, round(time.time() - f_start, 3)))
@@ -244,18 +257,21 @@ class Experiment(object):
 
             # for displaying learned policies
             if self.args.display:
-                time.sleep(0.1)
+                time.sleep(self.args.render_time)
                 self.environment.render()
-                print('Step: {0}/{1}, Reward: {2}'.format(
-                    (episode_step+self.args.max_episode_len-1) % self.args.max_episode_len+1,
-                    self.args.max_episode_len,
-                    rew_n[0]))
-                if (episode_step + self.args.max_episode_len - 1) % self.args.max_episode_len + 1 == self.args.max_episode_len :
-                    print('---------------------------')
-                    print('Reward: {0}, Avg reward: {1}'.format(
-                        np.nansum(episode_rewards[0]),
-                        np.nanmean(episode_info[0])))
-                    print('---------------------------')
+
+                if not self.args.no_console:
+                    print('Step: {0}/{1}, Reward: {2}'.format(
+                        (episode_step+self.args.max_episode_len-1) % self.args.max_episode_len+1,
+                        self.args.max_episode_len,
+                        rew_n[0]))
+
+                    if (episode_step + self.args.max_episode_len - 1) % self.args.max_episode_len + 1 == self.args.max_episode_len :
+                        print('---------------------------')
+                        print('Reward: {0}, Avg reward: {1}'.format(
+                            np.nansum(episode_rewards[0]),
+                            np.nanmean(episode_info[0])))
+                        print('---------------------------')
 
             episode_step += 1
 
@@ -319,7 +335,7 @@ class Experiment(object):
         parser.add_argument("--lr", type=float, default=1e-3, help="learning rate for Adam optimizer")
         parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
         parser.add_argument("--batch-size", type=int, default=512, help="number of episodes to optimize at the same time")
-        parser.add_argument("--steps-per-train", type=int, default=100, help="number of environment steps after which one step of training is performed")
+        parser.add_argument("--steps-per-train", type=int, default=400, help="number of environment steps after which one step of training is performed")
 
         # Checkpointing
         parser.add_argument("--config", type=str, default=None, help="path to configuration file")
@@ -335,6 +351,7 @@ class Experiment(object):
         parser.add_argument("--skip-best-for-episodes", type=int, default=2000)
 
         parser.add_argument("--display", action="store_true", default=False)
+        parser.add_argument("--render-time", type=float, default=0.1)
         parser.add_argument("--evaluate", action="store_true", default=False)
 
         # Inactive

@@ -1,6 +1,11 @@
+import random
+import itertools
+
 import numpy as np
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
+
+int_range = (-2**31, 2**31-1)
 
 
 class Scenario(BaseScenario):
@@ -15,18 +20,25 @@ class Scenario(BaseScenario):
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
-            agent.collide = False
+            agent.index = i
+            agent.collide = True
             agent.silent = True
             agent.size = 0.15
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
             landmark.name = 'landmark %d' % i
+            landmark.index = i
             landmark.collide = False
             landmark.movable = False
         # make initial conditions
         self.reset_world(world)
-        self.dir = np.random.randint(0, 2, 2)*2-1
+        if num_agents > num_landmarks:
+            raise Exception('Not enough landmarks for the agents')
+
+        self.perms = np.fromiter(itertools.chain.from_iterable(itertools.permutations(range(num_landmarks), num_agents)), dtype=int).reshape(-1, num_agents)
+        self.perms_oh = np.eye(num_landmarks)[self.perms]
+
         return world
 
     def reset_world(self, world):
@@ -36,6 +48,7 @@ class Scenario(BaseScenario):
         # random properties for landmarks
         for i, landmark in enumerate(world.landmarks):
             landmark.color = np.array([0.25, 0.25, 0.25])
+
         # set random initial states
         for agent in world.agents:
             agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
@@ -44,7 +57,19 @@ class Scenario(BaseScenario):
         for i, landmark in enumerate(world.landmarks):
             landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
-        self.dir = np.random.randint(0, 2, 2) * 2 - 1
+
+        len_agent = len(world.agents)
+        len_landmark = len(world.landmarks)
+        len_al = (len_agent, len_landmark)
+
+        self.wagents = [random.randint(*int_range) for _ in range(len_agent)]
+        self.wland = [random.randint(*int_range) for _ in range(len_landmark)]
+
+        sh_a = np.eye(len_agent)[np.random.choice(*len_al)]
+        sh_l = np.transpose(np.eye(len_landmark)[np.random.choice(*len_al[::-1])])
+        self.shutter = sh_a + sh_l - sh_a * sh_l
+
+        # TODO shutter for agents ?
 
     def benchmark_data(self, agent, world):
         rew = 0
@@ -73,21 +98,23 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = 0
-        for a in world.agents:
-            if a.state.p_vel[0]*self.dir[0] > 0 and a.state.p_vel[1]*self.dir[1] > 0:
-                rew += 1
-            else:
-                rew -= 1
+
+        apos = np.array([a.state.p_pos for a in world.agents])
+        lpos = np.array([l.state.p_pos for l in world.landmarks])
+        dists = np.sqrt([np.sum(np.square(apos[:, None, :] - lpos[None, :, :]), axis=-1)])
+        rew = -np.min(np.sum(dists * self.perms_oh, axis=(-1, -2)))
+
+        if agent.collide:
+            for a in world.agents:
+                if self.is_collision(a, agent):
+                    rew -= 1
         return rew
 
     def observation(self, agent, world):
         # get positions of all entities in this agent's reference frame
         entity_pos = []
         for entity in world.landmarks:  # world.entities:
-            if agent.name == 'agent 0':
-                entity_pos.append(self.dir)
-            else:
-                entity_pos.append(entity.state.p_pos - entity.state.p_pos)
+            entity_pos.append(entity.state.p_pos - agent.state.p_pos)
         # entity colors
         entity_color = []
         for entity in world.landmarks:  # world.entities:
@@ -96,9 +123,19 @@ class Scenario(BaseScenario):
         comm = []
         other_pos = []
         for other in world.agents:
-            if other is agent: continue
+            if other is agent:
+                continue
             comm.append(other.state.c)
+            other_pos.append(other.state.p_pos - agent.state.p_pos)
 
-            other_pos.append(other.state.p_pos - other.state.p_pos)
+        mask = self.shutter[:, [agent.index]]
+        landmarks_info = list(zip(entity_pos * mask, entity_color * mask))
 
-        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm)
+        # TODO wagent for coverage of other agents
+
+        random.Random(self.wland[agent.index]).shuffle(landmarks_info)
+        random_entity_pos, random_entity_color = list(zip(*landmarks_info))
+        random_entity_pos = list(random_entity_pos)
+        random_entity_color = list(random_entity_color)
+
+        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + random_entity_pos + other_pos + comm)

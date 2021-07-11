@@ -45,6 +45,8 @@ class Entity(object):
         self.state = EntityState()
         # mass
         self.initial_mass = 1.0
+        # index
+        self.index = 0
 
     @property
     def mass(self):
@@ -77,6 +79,7 @@ class Agent(Entity):
         self.action = Action()
         # script behavior to execute
         self.action_callback = None
+
 
 # multi-agent world
 class World(object):
