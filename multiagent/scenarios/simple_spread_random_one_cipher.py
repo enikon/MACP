@@ -25,21 +25,8 @@ class Scenario(BaseScenario):
         num_agents = 3
         num_landmarks = 3
         world.collaborative = True
-        # add agents
-        world.agents = [Agent() for i in range(num_agents)]
-        for i, agent in enumerate(world.agents):
-            agent.name = 'agent %d' % i
-            agent.index = i
-            agent.collide = True
-            agent.silent = True
-            agent.size = 0.15
-        # add landmarks
-        world.landmarks = [Landmark() for i in range(num_landmarks)]
-        for i, landmark in enumerate(world.landmarks):
-            landmark.name = 'landmark %d' % i
-            landmark.index = i
-            landmark.collide = False
-            landmark.movable = False
+
+        world_definition(world, num_agents, num_landmarks)
 
         # make constants
         self.perms = np.fromiter(

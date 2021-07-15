@@ -39,8 +39,7 @@ class Scenario(BaseScenario):
 
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
-        rew = 0
-        rew += sum_reward(world)
+        rew = sum_reward(world)
         rew += collision_reward(agent, world)
         return rew
 

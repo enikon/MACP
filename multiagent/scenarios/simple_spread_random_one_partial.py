@@ -4,8 +4,7 @@ import itertools
 import numpy as np
 from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
-
-int_range = (-2**31, 2**31-1)
+from multiagent.scenarios.commons import *
 
 
 class Scenario(BaseScenario):
@@ -16,22 +15,9 @@ class Scenario(BaseScenario):
         num_agents = 3
         num_landmarks = 3
         world.collaborative = True
-        # add agents
-        world.agents = [Agent() for i in range(num_agents)]
-        for i, agent in enumerate(world.agents):
-            agent.name = 'agent %d' % i
-            agent.index = i
-            agent.collide = True
-            agent.silent = True
-            agent.size = 0.15
-        # add landmarks
-        world.landmarks = [Landmark() for i in range(num_landmarks)]
-        for i, landmark in enumerate(world.landmarks):
-            landmark.name = 'landmark %d' % i
-            landmark.index = i
-            landmark.collide = False
-            landmark.movable = False
-        # make initial conditions
+
+        world_definition(world, num_agents, num_landmarks)
+
         self.reset_world(world)
         if num_agents > num_landmarks:
             raise Exception('Not enough landmarks for the agents')
@@ -97,8 +83,6 @@ class Scenario(BaseScenario):
 
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
-        rew = 0
-
         apos = np.array([a.state.p_pos for a in world.agents])
         lpos = np.array([l.state.p_pos for l in world.landmarks])
         dists = np.sqrt([np.sum(np.square(apos[:, None, :] - lpos[None, :, :]), axis=-1)])

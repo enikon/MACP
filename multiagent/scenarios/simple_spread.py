@@ -1,6 +1,5 @@
-import numpy as np
-from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
+from multiagent.scenarios.commons import *
 
 
 class Scenario(BaseScenario):
@@ -26,6 +25,7 @@ class Scenario(BaseScenario):
             landmark.movable = False
         # make initial conditions
         self.reset_world(world)
+
         return world
 
     def reset_world(self, world):

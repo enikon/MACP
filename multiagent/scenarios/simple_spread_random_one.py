@@ -4,12 +4,24 @@ from multiagent.scenarios.simple_spread import Scenario as S
 
 
 class Scenario(S):
+    def make_world(self):
+        world = World()
+        # set any world properties first
+        world.dim_c = 2
+        num_agents = 3
+        num_landmarks = 3
+        world.collaborative = True
+
+        world_definition(world, num_agents, num_landmarks)
+
+        self.perm_oh = permutation_utils(world)
+        self.reset_world(world)
+        return world
 
     def reset_world(self, world):
         super().reset_world(world)
         self.wagents = [random.randint(*int_range) for _ in range(len(world.agents))]
         self.wland = [random.randint(*int_range) for _ in range(len(world.agents))]
-        self.perm_oh = permutation_utils(world)
 
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
@@ -18,7 +30,6 @@ class Scenario(S):
         return rew
 
     def observation(self, agent, world):
-
         entity_pos, other_pos = obs_relative(agent, world)
 
         # shuffle landmark order
