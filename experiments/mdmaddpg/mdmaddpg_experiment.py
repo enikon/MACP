@@ -1,5 +1,5 @@
 from experiments.experiment import *
-from experiments.mdmaddpg_trainer import MDMADDPGTrainer
+from experiments.mdmaddpg.mdmaddpg_trainer import MDMADDPGTrainer
 from maddpg.common.replay_buffer import NReplayBuffer
 
 

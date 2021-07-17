@@ -49,7 +49,8 @@ class CNActorController(tf.keras.Model):
 
             # Disabled self communication
             # in paper it is not disabled (tf.math.reduce_sum(x, axis=1, keepdims=True) / (self.n_agents))
-            ci = (tf.math.reduce_sum(x, axis=1, keepdims=True) - x) / (self.n_agents - 1)
+            # here it is disabled ((tf.math.reduce_sum(x, axis=1, keepdims=True) - x) / (self.n_agents))
+            ci = (tf.math.reduce_sum(x, axis=1, keepdims=True)) / (self.n_agents - 1)
             x = self.gru_cell[i](ci, states=x)[0]
             x = x + h0 #skip connection
 

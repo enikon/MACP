@@ -1,22 +1,15 @@
-from experiments.commnet_trainer import CommnetTrainer
 from experiments.experiment import *
+from experiments.maddpg.maddpg_trainer import MADDPGTrainer
 from maddpg.common.replay_buffer import NReplayBuffer
 
 
-class CommnetExperiment(Experiment):
+class MADDPGExperiment(Experiment):
     def __init__(self):
-        super(CommnetExperiment, self).__init__(
+        super(MADDPGExperiment, self).__init__(
             self.get_env,
-            CommnetTrainer,
-            name='commnet'
+            MADDPGTrainer,
+            'maddpg'
         )
-
-    def parser(self):
-        parser = super().parser()
-        parser.add_argument("--disable-comm", action="store_true", default=False)
-        parser.add_argument("--communication_length", type=int, default=20, help="size of the communication vector")
-        parser.add_argument("--communication_steps", type=int, default=2, help="number of communication messages sent")
-        return parser
 
     def init_loop(self):
         pass
@@ -28,16 +21,11 @@ class CommnetExperiment(Experiment):
         pass
 
     def collect_action(self, obs_n):
-        # Populate actions, states for all agents
-        action_n = []
-        for i, agent in enumerate(self.trainers):
-            act = agent.action(np.array(obs_n))
-            action_n = act.numpy()
-        return [np.squeeze(i) for i in np.split(action_n, action_n.shape[0])]
+        return [agent.action(obs).numpy() for agent, obs in zip(self.trainers, obs_n)]
 
     def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal):
         for i, agent in enumerate(self.trainers):
-            self.replay_buffer_n[i].add(obs_n, action_n, rew_n[0], new_obs_n, np.product(done_n), terminal)
+            self.replay_buffer_n[i].add(obs_n[i], action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
 
     def train_experience(self, buffer):
 
@@ -69,15 +57,16 @@ class CommnetExperiment(Experiment):
     def get_trainers(self):
         return [
             self.trainer(
-                "agents",
+                "agent_%d" % i,
                 self.environment.n,
-                self.environment.observation_space[0].shape,
-                self.environment.action_space[0],
+                self.environment.observation_space[i].shape,
+                self.environment.action_space[i],
+                i,
                 self.args
             )
+            for i in range(self.environment.n)
         ]
 
 
 if __name__ == '__main__':
-    CommnetExperiment()
-
+    MADDPGExperiment()
