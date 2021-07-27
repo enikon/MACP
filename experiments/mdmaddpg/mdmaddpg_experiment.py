@@ -15,6 +15,17 @@ class MDMADDPGExperiment(Experiment):
             'md'
         )
 
+        shape = self.trainers[0].actors.shape
+        self.ou_manager = nfn.NoiseOUManager(
+            [
+                nfn.NoiseOU(shape, 0.2),
+                nfn.NoiseUniform(shape),
+                nfn.NoiseUniform(shape)
+            ],
+            [0, 0, 1, 2]
+        )
+        self.init()
+
     def parser(self):
         parser = super().parser()
         parser.add_argument("--disable-comm", action="store_true", default=False)
@@ -30,25 +41,30 @@ class MDMADDPGExperiment(Experiment):
         self.memory_init = np.random.normal(loc=0.0, scale=1.0, size=(self.args.memory_size, )).astype(np.float32)
 
     def init_buffer(self):
-        return NReplayBuffer(int(1e6), 7)
+        return NReplayBuffer(int(1e6), 6)
 
     def reset_loop(self):
+        self.ou_manager.reset()
         self.memory_state_in = np.random.normal(loc=0.0, scale=1.0, size=(self.args.memory_size, )).astype(np.float32)
 
-    def collect_action(self, obs_n):
+    def collect_action(self, obs_n, mask):
         # Populate actions, states for all agents
         action_n = []
         self.memory_a = []
 
+        ou_s = self.ou_manager.get()
+        mask = tf.constant([[1.], [1.], [0.]])
+
         for i, agent in enumerate(self.trainers):
             if self.args.disable_mem:
                 self.memory_state_in = self.memory_state_in * 0
-
-            act, mem = agent.action(obs_n[i][None], self.memory_state_in[None])
+            act, mem = agent.action(obs_n[i][None], self.memory_state_in[None], mask[i], ou_s)
 
             action_n.append(act)
             self.memory_a.append(mem)
             self.memory_state_in = mem
+
+        self.ou_manager.update()
         return action_n
 
     def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal):

@@ -4,6 +4,7 @@ import tensorflow as tf
 from maddpg.model.maddpg import Actor, Critic
 from maddpg.common.tf_util import clipnorm, update_target
 from maddpg.model.mdmaddpg import MDActorNetwork
+import maddpg.common.noise_fn as nfn
 
 
 class MDMADDPGTrainer(Trainer):
@@ -20,6 +21,17 @@ class MDMADDPGTrainer(Trainer):
         self.critic = Critic(args=args)
         self.target_critic = Critic(args=args)
 
+        self.noise_s_fn = nfn.identity
+        self.noise_r_fn = nfn.generate_noise(
+            shape=(1, self.args.memory_size),
+            way=nfn.NoiseNames.WAY_ADD,
+            type=nfn.NoiseNames.TYPE_PROBABILITY,
+            val=nfn.NoiseNames.VALUE_CONSTANT,
+            pck={
+                'value': 2,
+                'prob': 0.2
+            })
+
     def model_save_dict(self):
         return {
             "critic": self.critic,
@@ -29,9 +41,13 @@ class MDMADDPGTrainer(Trainer):
         }
 
     @tf.function
-    def action(self, obs, mem):
-        p, m = self.actor.sample(obs, mem)
-        return p[0], m[0]
+    def action(self, obs, mem, mask, ou_s):
+
+        read_mem_with_noise = self.noise_r_fn(mem, mask, (ou_s[0], ou_s[1]))
+        p, m = self.actor.sample(obs, read_mem_with_noise)
+        write_mem_with_noise = self.noise_s_fn(m, mask, (ou_s[0], ou_s[1]))
+
+        return p[0], write_mem_with_noise[0]
 
     def update(self, agents, experience):
         obs_n = [tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx()) for i in experience["obs_n"]]

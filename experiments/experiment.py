@@ -4,6 +4,8 @@ from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
+import maddpg.common.noise_fn as nfn
+
 import time
 from maddpg.common.tf_util import allow_growth
 from experiments.environmenter import scenario_environment
@@ -58,6 +60,8 @@ class Experiment(object):
         ###################################
 
         self.trainers = self.get_trainers()
+
+    def init(self):
 
         #############################
         # Specify saving parameters #
@@ -139,7 +143,7 @@ class Experiment(object):
         #########################
 
         self.replay_buffer_n = [self.init_buffer() for _ in range(len(self.trainers))]
-        self.max_replay_buffer_len = self.args.batch_size * self.args.max_episode_len
+        self.min_experiences_number = self.args.batch_size * self.args.max_episode_len
         self.replay_sample_index = [None for _ in range(len(self.trainers))]
 
         ##########################################
@@ -179,7 +183,8 @@ class Experiment(object):
             #################
 
             # get action
-            action_n = self.collect_action(obs_n)
+            mask = tf.constant([[1.], [1.], [0.]])
+            action_n = self.collect_action(obs_n, mask)
 
             # environment step
             new_obs_n, rew_n, done_n, info_n = self.environment.step(action_n)
@@ -285,7 +290,7 @@ class Experiment(object):
             loss = None
 
             # TODO set max buffer size and inital buffer size as params
-            if len(self.replay_buffer_n[0]) >= self.max_replay_buffer_len \
+            if len(self.replay_buffer_n[0]) >= self.min_experiences_number \
                     and train_step % self.args.steps_per_train == 0:
                 # Fill replay buffer
 
@@ -385,7 +390,7 @@ class Experiment(object):
     def reset_loop(self):
         raise NotImplemented()
 
-    def collect_action(self, obs_n):
+    def collect_action(self, obs_n, mask):
         raise NotImplemented()
 
     def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal):

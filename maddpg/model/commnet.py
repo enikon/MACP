@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from maddpg.common.distributions import make_pdtype
-import  maddpg.common.noise_fn as nfn
+import maddpg.common.noise_fn as nfn
 from maddpg.common.tf_util import sample_soft
 
 
@@ -13,15 +13,20 @@ class CNActorController(tf.keras.Model):
         self.act_pd = make_pdtype(act_space)
         self.pd = None
 
+        self.NO_MASK = tf.zeros(1, dtype=tf.float32)
+        self.NO_OU = self.NO_MASK, self.NO_MASK, self.NO_MASK, self.NO_MASK
+
+        self.shape = (1, n_agents, h_units)
+
         self.noise_s_fn = nfn.identity
         self.noise_r_fn = nfn.generate_noise(
-            shape=(1, n_agents, h_units),
+            shape=self.shape,
             way=nfn.NoiseNames.WAY_ADD,
             type=nfn.NoiseNames.TYPE_PROBABILITY,
-            val=nfn.NoiseNames.VALUE_CONSTANT,
+            val=nfn.NoiseNames.VALUE_UNIFORM,
             pck={
-                'value': 2,
-                'prob': 0.2
+                'prob': 0.2,
+                'range': (-1, 1)
             })
 
         self.n_agents = n_agents
@@ -41,7 +46,7 @@ class CNActorController(tf.keras.Model):
 
     @tf.function
     def call(self, inputs):
-        x = inputs
+        x, mask, ou_s = inputs
         x = self.encoder(x)
         h0 = self.encoder_2(x)
         x = h0
@@ -53,9 +58,9 @@ class CNActorController(tf.keras.Model):
             # here it is disabled ((tf.math.reduce_sum(x, axis=1, keepdims=True) - x) / (self.n_agents - 1))
 
             # Should there be a stop gradient
-            x_with_noise = self.noise_s_fn(x)
+            x_with_noise = self.noise_s_fn(x, mask, (ou_s[0], ou_s[1]))
             ci = (tf.math.reduce_sum(x_with_noise, axis=1, keepdims=True)) / (self.n_agents)
-            ci_with_noise = self.noise_r_fn(ci)
+            ci_with_noise = self.noise_r_fn(ci, mask, (ou_s[2], ou_s[3]))
             x = self.gru_cell[i](ci_with_noise, states=x)[0]
             x = x + h0
 
@@ -65,20 +70,26 @@ class CNActorController(tf.keras.Model):
 
     @tf.function
     def sample(self, obs):
-        p = self.call(obs)
+        p = self.call((obs, self.NO_MASK, self.NO_OU))
+        tf_action = sample_soft(p)
+        return tf_action
+
+    @tf.function
+    def act_sample(self, obs, mask, ou_s):
+        p = self.call((obs, mask, ou_s))
         tf_action = sample_soft(p)
         return tf_action
 
     # must already doing log(softmax(p) + bias) and mean(sigmoid)
     @tf.function
     def sample_reg(self, obs):
-        p = self.call(obs)
+        p = self.call((obs, self.NO_MASK, self.NO_OU))
         tf_action = sample_soft(p)
         return tf_action, p
 
     @tf.function
     def raw(self, obs):
-        p = self.call(obs)
+        p = self.call((obs, self.NO_MASK, self.NO_OU))
         return p
 
 
@@ -88,7 +99,7 @@ class CNActorControllerNoComm(CNActorController):
 
     @tf.function
     def call(self, inputs):
-        x = inputs
+        x, mask, ou_s = inputs
         x = self.encoder(x)
         h0 = self.encoder_2(x)
         x = h0

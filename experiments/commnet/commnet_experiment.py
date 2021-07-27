@@ -10,6 +10,16 @@ class CommnetExperiment(Experiment):
             CommnetTrainer,
             name='commnet'
         )
+        shape = self.trainers[0].actors.shape
+        self.ou_manager = nfn.NoiseOUManager(
+            [
+                nfn.NoiseOU(shape, 0.2),
+                nfn.NoiseUniform(shape),
+                nfn.NoiseUniform(shape)
+            ],
+            [0, 0, 1, 2]
+        )
+        self.init()
 
     def parser(self):
         parser = super().parser()
@@ -25,14 +35,16 @@ class CommnetExperiment(Experiment):
         return NReplayBuffer(int(1e6), 6)
 
     def reset_loop(self):
-        pass
+        self.ou_manager.reset()
 
-    def collect_action(self, obs_n):
+    def collect_action(self, obs_n, mask):
         # Populate actions, states for all agents
         action_n = []
+        ou_s = self.ou_manager.get()
         for i, agent in enumerate(self.trainers):
-            act = agent.action(np.array(obs_n))
+            act = agent.action(np.array(obs_n), mask, ou_s)
             action_n = act.numpy()
+        self.ou_manager.update()
         return [np.squeeze(i) for i in np.split(action_n, action_n.shape[0])]
 
     def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal):

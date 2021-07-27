@@ -33,8 +33,8 @@ class CommnetTrainer(Trainer):
         }
 
     @tf.function
-    def action(self, obs):
-        p = self.actors.sample(tf.expand_dims(obs, axis=0))[0]
+    def action(self, obs, mask, ou_s):
+        p = self.actors.act_sample(tf.expand_dims(obs, axis=0), mask, ou_s)[0]
         return p
 
     def update(self, agents, experience):
