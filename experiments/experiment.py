@@ -132,11 +132,16 @@ class Experiment(object):
 
         history = np.zeros((6, len(self.trainers)))
 
+        #TODO agents number
+        n_agents = 3
+
         episode_info = np.full((2, self.args.logs_range_collect), np.nan)  # sum of rewards for all agents
         episode_rewards = np.full((1, self.args.max_episode_len), np.nan)
+        episode_metrics = np.full((2, 2, n_agents, self.args.logs_range_collect), np.nan)
 
         episode_info[0, 0] = 0
         episode_info[1, 0] = 0
+        episode_metrics[:, :, :, 0] = np.zeros((2, 2, n_agents))
 
         #########################
         # Specify replay buffer #
@@ -189,26 +194,32 @@ class Experiment(object):
             # environment step
             new_obs_n, rew_n, done_n, info_n = self.environment.step(action_n)
             done = all(done_n)
-            terminal = (episode_step >= self.args.max_episode_len)
+            terminal = (episode_step >= self.args.max_episode_len-1)
 
             # collect experience
             if not self.args.evaluate:
                 self.collect_experience(obs_n, action_n, np.array(rew_n).astype(np.float32), new_obs_n,
                                         np.array(done_n).astype(np.float32), terminal)
 
+            if episode_number % self.args.metrics_rate_collect == 0 and self.saving_enabled:
+                metrics_i = int((episode_number / self.args.metrics_rate_collect) % self.args.logs_range_collect)
+                if episode_step == 0:
+                    episode_metrics[:, :, :, metrics_i] = self.collect_metrics(obs_n, mask)
+                else:
+                    episode_metrics[:, :, :, metrics_i] += self.collect_metrics(obs_n, mask)
+                # [send, recv] [signal, noise] [a1,a2,a3]
+
             obs_n = new_obs_n
             episode_info[0, episode_number % self.args.logs_range_collect] += rew_n[0]
             episode_rewards[0, episode_step % self.args.max_episode_len] = rew_n[0]
 
             if done or terminal:
-
                 ###############################
                 # EVALUATE END OF THE EPISODE #
                 ###############################
 
                 episode_info[1, episode_number % self.args.logs_range_collect] = episode_step
                 episode_number += 1
-                episode_step = 0
 
                 # Printing
                 if episode_number % self.args.logs_rate_collect == 0 and self.saving_enabled:
@@ -228,8 +239,6 @@ class Experiment(object):
 
                         tf.summary.scalar("09_extra/episodes_reward_in_steps", ep_rew, step=train_step)
                         tf.summary.scalar("09_extra/episodes_length_in_steps", ep_len, step=train_step)
-
-                    #logs_writer.flush()
 
                     t_start = time.time()
 
@@ -260,6 +269,18 @@ class Experiment(object):
                 self.reset_loop()
                 episode_info[0, episode_number % self.args.logs_range_collect] = 0
 
+                if self.saving_enabled:
+                    __noise = np.nanmean(episode_metrics / self.args.max_episode_len, axis=(-1, -2))
+
+                    with logs_writer.as_default():
+                        # Mean of the last collect_rate episodes, collected on every step
+                        tf.summary.scalar("03_metrics/send_noise_power", __noise[0, 1], step=episode_number)
+                        tf.summary.scalar("03_metrics/send_signal_power", __noise[0, 0], step=episode_number)
+                        tf.summary.scalar("03_metrics/recv_noise_power", __noise[1, 1], step=episode_number)
+                        tf.summary.scalar("03_metrics/recv_signal_power", __noise[1, 0], step=episode_number)
+                        tf.summary.scalar("03_metrics/send_snr", __noise[0, 0]/__noise[0, 1], step=episode_number)
+                        tf.summary.scalar("03_metrics/recv_snr", __noise[1, 0]/__noise[1, 1], step=episode_number)
+
             # for displaying learned policies
             if self.args.display:
                 time.sleep(self.args.render_time)
@@ -267,17 +288,19 @@ class Experiment(object):
 
                 if not self.args.no_console:
                     print('Step: {0}/{1}, Reward: {2}'.format(
-                        (episode_step+self.args.max_episode_len-1) % self.args.max_episode_len+1,
+                        episode_step+1,
                         self.args.max_episode_len,
                         rew_n[0]))
 
-                    if (episode_step + self.args.max_episode_len - 1) % self.args.max_episode_len + 1 == self.args.max_episode_len :
+                    if  episode_step+1 == self.args.max_episode_len :
                         print('---------------------------')
                         print('Reward: {0}, Avg reward: {1}'.format(
                             np.nansum(episode_rewards[0]),
                             np.nanmean(episode_info[0])))
                         print('---------------------------')
 
+            if done or terminal:
+                episode_step = -1
             episode_step += 1
 
             # increment global step counter
@@ -370,6 +393,7 @@ class Experiment(object):
         parser.add_argument("--logs-rate-display", type=int, default=1000, help="how often log will be displayed")
 
         parser.add_argument("--logs-rate-collect", type=int, default=1000, help="how often logs will be collected")
+        parser.add_argument("--metrics-rate-collect", type=int, default=100, help="how often logs will be collected")
         parser.add_argument("--logs-range-collect", type=int, default=1000, help="how many instances will be used for counting averages")
         parser.add_argument("--no-console", action="store_true", default=False)
 
@@ -391,6 +415,9 @@ class Experiment(object):
         raise NotImplemented()
 
     def collect_action(self, obs_n, mask):
+        raise NotImplemented()
+
+    def collect_metrics(self, obs_n, mask):
         raise NotImplemented()
 
     def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal):

@@ -26,7 +26,8 @@ class CNActorController(tf.keras.Model):
             val=nfn.NoiseNames.VALUE_UNIFORM,
             pck={
                 'prob': 0.2,
-                'range': (-1, 1)
+                'range': (-1, 1),
+                'value': 2
             })
 
         self.n_agents = n_agents
@@ -43,6 +44,8 @@ class CNActorController(tf.keras.Model):
         self.decoder = tf.keras.layers.Dense(self.h_units, tf.nn.relu, bias_initializer='random_normal')
         self.output_layer = tf.keras.layers.Dense(act_space.n, bias_initializer='random_normal')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=args.lr, clipnorm=0.5)
+
+        self.extra_metrics = [(None, None, None, None) for _ in range(self.c_layers)]
 
     @tf.function
     def call(self, inputs):
@@ -61,12 +64,36 @@ class CNActorController(tf.keras.Model):
             x_with_noise = self.noise_s_fn(x, mask, (ou_s[0], ou_s[1]))
             ci = (tf.math.reduce_sum(x_with_noise, axis=1, keepdims=True)) / (self.n_agents)
             ci_with_noise = self.noise_r_fn(ci, mask, (ou_s[2], ou_s[3]))
+
             x = self.gru_cell[i](ci_with_noise, states=x)[0]
             x = x + h0
 
         x = self.decoder(x)
         x = self.output_layer(x)
         return x
+
+    def metrics_call(self, inputs):
+        x, mask, ou_s = inputs
+        x = self.encoder(x)
+        h0 = self.encoder_2(x)
+        x = h0
+
+        for i in range(self.c_layers):
+            # Disabled self communication
+            # in paper it is not disabled (tf.math.reduce_sum(x, axis=1, keepdims=True) / (self.n_agents))
+            # here it is disabled ((tf.math.reduce_sum(x, axis=1, keepdims=True) - x) / (self.n_agents - 1))
+
+            # Should there be a stop gradient
+            x_with_noise = self.noise_s_fn(x, mask, (ou_s[0], ou_s[1]))
+            ci = (tf.math.reduce_sum(x_with_noise, axis=1, keepdims=True)) / (self.n_agents)
+            ci_with_noise = self.noise_r_fn(ci, mask, (ou_s[2], ou_s[3]))
+
+            self.extra_metrics[i] = (x, x_with_noise-x, ci, ci_with_noise-ci)
+
+            x = self.gru_cell[i](ci_with_noise, states=x)[0]
+            x = x + h0
+
+        return self.extra_metrics
 
     @tf.function
     def sample(self, obs):

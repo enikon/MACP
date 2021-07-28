@@ -13,9 +13,9 @@ class CommnetExperiment(Experiment):
         shape = self.trainers[0].actors.shape
         self.ou_manager = nfn.NoiseOUManager(
             [
-                nfn.NoiseOU(shape, 0.2),
                 nfn.NoiseUniform(shape),
-                nfn.NoiseUniform(shape)
+                nfn.NoiseOU(shape, 0.2),
+                nfn.NoiseOU(shape, 0.2)
             ],
             [0, 0, 1, 2]
         )
@@ -40,12 +40,26 @@ class CommnetExperiment(Experiment):
     def collect_action(self, obs_n, mask):
         # Populate actions, states for all agents
         action_n = []
+        self.ou_manager.update()
         ou_s = self.ou_manager.get()
         for i, agent in enumerate(self.trainers):
             act = agent.action(np.array(obs_n), mask, ou_s)
             action_n = act.numpy()
-        self.ou_manager.update()
         return [np.squeeze(i) for i in np.split(action_n, action_n.shape[0])]
+
+    def collect_metrics(self, obs_n, mask):
+        ou_s = self.ou_manager.get()
+        metrics = [tf.zeros(1) for _ in range(4)]
+        dim_mask = np.expand_dims(mask * 0 + 1, 0)
+
+        for agent in self.trainers:
+            phases = agent.actors.metrics_call(
+                (np.expand_dims(obs_n, 0), mask, ou_s))
+            for p in phases:
+                for i, m in enumerate(p):
+                    metrics[i] += m * dim_mask
+        stacked_metrics = tf.stack([tf.stack(metrics[:2], 0), tf.stack(metrics[2:], 0)], 0)
+        return tf.math.reduce_variance(stacked_metrics, (-1, 2))
 
     def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal):
         for i, agent in enumerate(self.trainers):
