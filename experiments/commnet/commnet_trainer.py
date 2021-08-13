@@ -97,3 +97,6 @@ class CommnetTrainer(Trainer):
             update_target(self.critic, self.target_critic)
 
         return q_loss, p_loss, target_q, target_q_next
+
+    def get_networks(self):
+        return [self.actors, self.target_actors, self.critic, self.target_critic]
