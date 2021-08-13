@@ -15,6 +15,8 @@ class MDMADDPGTrainer(Trainer):
         self.agent_index = agent_index
         self.args = args
 
+        self.polyak_rate_iterator = 0
+
         self.actor = MDActorNetwork(act_space=act_space, args=args)
         self.target_actor = MDActorNetwork(act_space=act_space, args=args)
 
@@ -41,13 +43,13 @@ class MDMADDPGTrainer(Trainer):
         }
 
     @tf.function
-    def action(self, obs, mem, mask, ou_s):
+    def action(self, obs, mem, mask, ou_a):
 
-        read_mem_with_noise = self.noise_r_fn(mem, mask, (ou_s[0], ou_s[1]))
-        p, m = self.actor.sample(obs, read_mem_with_noise)
-        write_mem_with_noise = self.noise_s_fn(m, mask, (ou_s[0], ou_s[1]))
+        read_mem_with_noise = mem #self.noise_r_fn(mem, mask, (ou_s[0], ou_s[1]))
+        p, m, ou_a_res = self.actor.sample_ou(obs, read_mem_with_noise, ou_a)
+        write_mem_with_noise = m #self.noise_s_fn(m, mask, (ou_s[0], ou_s[1]))
 
-        return p[0], write_mem_with_noise[0]
+        return p[0], write_mem_with_noise[0], ou_a_res
 
     def update(self, agents, experience):
         obs_n = [tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx()) for i in experience["obs_n"]]
@@ -64,6 +66,8 @@ class MDMADDPGTrainer(Trainer):
         cct_obs, cct_act = tf.concat(obs_n, -1), tf.concat(act_n, -1)
         cct_obs_next = tf.concat(obs_next_n, -1)
 
+        self.polyak_rate_iterator += 1
+        polyak_rate = 5
         num_sample = 1
         target_q = 0.0
         target_q_next = None
@@ -89,11 +93,15 @@ class MDMADDPGTrainer(Trainer):
             q = self.critic.eval(tf.concat((cct_obs, tf.concat(act_n_new, -1)), -1))
 
             p_reg = tf.reduce_mean(tf.square(act_pd))
-            p_loss = -tf.reduce_mean(q) + p_reg * 1e-3
+            p_loss = (-tf.reduce_mean(q) + p_reg * 1e-4) * 100
         actor_grad = tape_p.gradient(p_loss, self.actor.trainable_weights)
         self.actor.optimizer.apply_gradients(zip(clipnorm(actor_grad, 0.5), self.actor.trainable_weights))
 
-        update_target(self.actor, self.target_actor)
-        update_target(self.critic, self.target_critic)
+        if self.polyak_rate_iterator % polyak_rate == 0:
+            update_target(self.actor, self.target_actor)
+            update_target(self.critic, self.target_critic)
 
         return q_loss, p_loss, target_q, target_q_next
+
+    def get_networks(self):
+        return [self.actor, self.target_actor, self.critic, self.target_critic]

@@ -4,7 +4,6 @@ from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
-import maddpg.common.noise_fn as nfn
 
 import time
 from maddpg.common.tf_util import allow_growth
@@ -22,7 +21,8 @@ class Experiment(object):
         # Reading parameters #
         ######################
 
-        self.args = self.parser().parse_args() if args is None else args
+        self.args = self.parser().parse_args()
+
         t_args = argparse.Namespace()
 
         if os.path.exists('default'):
@@ -34,6 +34,11 @@ class Experiment(object):
             with open(self.args.config, 'rt') as f:
                 t_args.__dict__.update(json.load(f))
                 print('Config file loaded')
+
+        if args is not None:
+            t_args.__dict__.update(args)
+            print('Used enforced arguments')
+
         self.args = self.parser().parse_args(namespace=t_args)
 
         #####################
@@ -54,12 +59,6 @@ class Experiment(object):
             tf.config.set_visible_devices([], 'GPU')
 
         #self.args.max_episode_len = 2 # Fast debug
-
-        ###################################
-        # Specify input and output spaces #
-        ###################################
-
-        self.trainers = self.get_trainers()
 
     def init(self):
 
@@ -132,12 +131,12 @@ class Experiment(object):
 
         history = np.zeros((6, len(self.trainers)))
 
-        #TODO agents number
-        n_agents = 3
+        n_agents = self.environment.n
 
         episode_info = np.full((2, self.args.logs_range_collect), np.nan)  # sum of rewards for all agents
         episode_rewards = np.full((1, self.args.max_episode_len), np.nan)
         episode_metrics = np.full((2, 2, n_agents, self.args.logs_range_collect), np.nan)
+        benchmark_metrics = np.full((5, self.args.logs_range_collect), np.nan)
 
         episode_info[0, 0] = 0
         episode_info[1, 0] = 0
@@ -162,6 +161,11 @@ class Experiment(object):
         episode_number = 0
         update_number = 0
 
+        patience = self.args.decaying_lr_patience
+        patience_iterator = 0
+        max_rew = -100000
+        using_decay = self.args.decaying_lr is not None
+
         tf_train_step = _saver.step
         train_step = tf_train_step.numpy()
 
@@ -181,6 +185,24 @@ class Experiment(object):
             from tensorflow.python.profiler import profiler_v2 as profiler
             profiler.warmup()
 
+        if self.args.noise_mask == 'all':
+            self.args.noise_mask_value = 0
+        elif self.args.noise_mask == 'none':
+            self.args.noise_mask_value = n_agents
+
+        mask = tf.constant(
+            np.concatenate([
+                np.zeros(shape=(self.args.noise_mask_value, 1)),
+                np.ones(shape=(n_agents - self.args.noise_mask_value, 1))
+            ], axis=0),
+            dtype=tf.float32
+        )
+
+        if self.args.noise_mask == 'random':
+            mask = tf.random.shuffle(mask)
+        elif self.args.noise_mask == 'fixed':
+            pass
+
         while running:
 
             #################
@@ -188,13 +210,13 @@ class Experiment(object):
             #################
 
             # get action
-            mask = tf.constant([[1.], [1.], [0.]])
             action_n = self.collect_action(obs_n, mask)
 
             # environment step
             new_obs_n, rew_n, done_n, info_n = self.environment.step(action_n)
             done = all(done_n)
-            terminal = (episode_step >= self.args.max_episode_len-1)
+
+            terminal = episode_step+1 >= self.args.max_episode_len
 
             # collect experience
             if not self.args.evaluate:
@@ -205,13 +227,23 @@ class Experiment(object):
                 metrics_i = int((episode_number / self.args.metrics_rate_collect) % self.args.logs_range_collect)
                 if episode_step == 0:
                     episode_metrics[:, :, :, metrics_i] = self.collect_metrics(obs_n, mask)
+                    benchmark_metrics[:, metrics_i] = np.array(self.environment._get_benchmark())
                 else:
                     episode_metrics[:, :, :, metrics_i] += self.collect_metrics(obs_n, mask)
+                    #rew, collision, occupied, max
+                    benchmarks = self.environment._get_benchmark()
+                    benchmark_metrics[0, metrics_i] += benchmarks[0]
+                    benchmark_metrics[1, metrics_i] += benchmarks[1]
+                    benchmark_metrics[2, metrics_i] = max(benchmark_metrics[2, metrics_i], benchmarks[2])
+                    benchmark_metrics[3, metrics_i] = min(benchmark_metrics[3, metrics_i], benchmarks[3])
+                    benchmark_metrics[4, metrics_i] = max(benchmark_metrics[4, metrics_i], benchmarks[4])
                 # [send, recv] [signal, noise] [a1,a2,a3]
 
             obs_n = new_obs_n
             episode_info[0, episode_number % self.args.logs_range_collect] += rew_n[0]
             episode_rewards[0, episode_step % self.args.max_episode_len] = rew_n[0]
+
+            episode_step += 1
 
             if done or terminal:
                 ###############################
@@ -220,6 +252,24 @@ class Experiment(object):
 
                 episode_info[1, episode_number % self.args.logs_range_collect] = episode_step
                 episode_number += 1
+
+                # LR Decay
+                if using_decay:
+                    candidate_rew = np.nanmean(episode_info[0])
+                    if candidate_rew > max_rew:
+                        max_rew = candidate_rew
+                        patience_iterator = 0
+                    else:
+                        patience_iterator += 1
+                    if patience_iterator > patience:
+                        patience_iterator = 0
+                        c_lr = -1
+                        for t in self.trainers:
+                            for n in t.get_networks():
+                                new_lr = n.optimizer.learning_rate * self.args.decaying_lr
+                                c_lr = new_lr
+                                n.optimizer.learning_rate.assign(c_lr)
+                        print('New learning rate:'+str(c_lr))
 
                 # Printing
                 if episode_number % self.args.logs_rate_collect == 0 and self.saving_enabled:
@@ -245,7 +295,7 @@ class Experiment(object):
                 if not self.args.no_console and episode_number % self.args.logs_rate_display == 0:
                     ed_time = time.time() - d_start
                     print("steps: {}, episodes: {}, mean episode reward: {}, time: {}".format(
-                        train_step, episode_number, np.nanmean(episode_info[0]), round(ed_time, 3)))
+                        train_step+1, episode_number, np.nanmean(episode_info[0]), round(ed_time, 3)))
                     d_start = time.time()
 
                 if not self.args.evaluate and episode_number % self.args.save_rate == 0 and self.saving_enabled:
@@ -256,30 +306,67 @@ class Experiment(object):
                             best_value = best_value_candidate
                             best_saver.save()
                             print("Saved best:\n\t steps: {}, episodes: {}, mean episode reward: {}".format(
-                                train_step, episode_number, best_value_candidate))
+                                train_step+1, episode_number, best_value_candidate))
 
                 if self.args.num_episodes is not None and episode_number >= self.args.num_episodes and self.saving_enabled:
                     saver.save()
                     print("Training completed:\n\t steps: {}, episodes: {}, time: {}".format(
-                        train_step, episode_number, round(time.time() - f_start, 3)))
+                        train_step+1, episode_number, round(time.time() - f_start, 3)))
                     running = False
                 # End printing
+
+                if episode_number % self.args.logs_rate_collect == 0 and self.saving_enabled:
+                    #__noise = np.nanmean(episode_metrics / self.args.max_episode_len, axis=(-1, -2))
+
+                    t__noise, t__noise_special = None, None
+                    metrics_i = int(
+                        ((episode_number - 1) / self.args.metrics_rate_collect) % self.args.logs_range_collect)
+
+                    if self.args.noise_mask == 'all':
+                        t__noise = np.nanmean(episode_metrics[:, :, :, metrics_i] / self.args.max_episode_len, axis=-1)
+                    elif not self.args.noise_mask == 'none':
+                        t__noise_all = episode_metrics[:, :, :, metrics_i] / self.args.max_episode_len
+                        t__noise         = np.nanmean(t__noise_all[:, :, mask[:, 0].numpy() == 0], axis=-1)
+                        t__noise_special = np.nanmean(t__noise_all[:, :, mask[:, 0].numpy() == 1], axis=-1)
+
+                    t__bench = np.nanmean(benchmark_metrics, axis=-1)
+                    with logs_writer.as_default():
+                        tf.summary.scalar("03_metrics/rew", t__bench[0], step=episode_number)
+                        tf.summary.scalar("03_metrics/collisions", t__bench[1], step=episode_number)
+                        tf.summary.scalar("03_metrics/occupied_landmarks", t__bench[2], step=episode_number)
+                        tf.summary.scalar("03_metrics/farthest_distance", t__bench[3], step=episode_number)
+                        tf.summary.scalar("03_metrics/completion", t__bench[4], step=episode_number)
+
+                    if not self.args.noise_mask == 'none':
+                        with logs_writer.as_default():
+                            # Mean of the last collect_rate episodes, collected on every step
+                            tf.summary.scalar("04_metrics/send_noise_power", t__noise[0, 1], step=episode_number)
+                            tf.summary.scalar("04_metrics/send_signal_power", t__noise[0, 0], step=episode_number)
+                            tf.summary.scalar("04_metrics/recv_noise_power", t__noise[1, 1], step=episode_number)
+                            tf.summary.scalar("04_metrics/recv_signal_power", t__noise[1, 0], step=episode_number)
+                            tf.summary.scalar("04_metrics/send_snr", t__noise[0, 0]/t__noise[0, 1], step=episode_number)
+                            tf.summary.scalar("04_metrics/recv_snr", t__noise[1, 0]/t__noise[1, 1], step=episode_number)
+
+                        if not self.args.noise_mask == 'all':
+                            with logs_writer.as_default():
+                                # Mean of the last collect_rate episodes, collected on every step
+                                tf.summary.scalar("04_metrics/special_send_noise_power", t__noise_special[0, 1], step=episode_number)
+                                tf.summary.scalar("04_metrics/special_send_signal_power", t__noise_special[0, 0], step=episode_number)
+                                tf.summary.scalar("04_metrics/special_recv_noise_power", t__noise_special[1, 1], step=episode_number)
+                                tf.summary.scalar("04_metrics/special_recv_signal_power", t__noise_special[1, 0], step=episode_number)
+                                tf.summary.scalar("04_metrics/special_send_snr", t__noise_special[0, 0]/t__noise_special[0, 1], step=episode_number)
+                                tf.summary.scalar("04_metrics/special_recv_snr", t__noise_special[1, 0]/t__noise_special[1, 1], step=episode_number)
+
+                if self.args.noise_mask == 'random':
+                    mask = tf.random.shuffle(mask)
+                elif self.args.noise_mask == 'fixed':
+                    pass
 
                 obs_n = self.environment.reset()
                 self.reset_loop()
                 episode_info[0, episode_number % self.args.logs_range_collect] = 0
 
-                if self.saving_enabled:
-                    __noise = np.nanmean(episode_metrics / self.args.max_episode_len, axis=(-1, -2))
-
-                    with logs_writer.as_default():
-                        # Mean of the last collect_rate episodes, collected on every step
-                        tf.summary.scalar("03_metrics/send_noise_power", __noise[0, 1], step=episode_number)
-                        tf.summary.scalar("03_metrics/send_signal_power", __noise[0, 0], step=episode_number)
-                        tf.summary.scalar("03_metrics/recv_noise_power", __noise[1, 1], step=episode_number)
-                        tf.summary.scalar("03_metrics/recv_signal_power", __noise[1, 0], step=episode_number)
-                        tf.summary.scalar("03_metrics/send_snr", __noise[0, 0]/__noise[0, 1], step=episode_number)
-                        tf.summary.scalar("03_metrics/recv_snr", __noise[1, 0]/__noise[1, 1], step=episode_number)
+                #END IF TERMINAL
 
             # for displaying learned policies
             if self.args.display:
@@ -288,24 +375,23 @@ class Experiment(object):
 
                 if not self.args.no_console:
                     print('Step: {0}/{1}, Reward: {2}'.format(
-                        episode_step+1,
+                        episode_step,
                         self.args.max_episode_len,
                         rew_n[0]))
 
-                    if  episode_step+1 == self.args.max_episode_len :
+                    if  episode_step == self.args.max_episode_len :
                         print('---------------------------')
                         print('Reward: {0}, Avg reward: {1}'.format(
                             np.nansum(episode_rewards[0]),
                             np.nanmean(episode_info[0])))
                         print('---------------------------')
 
-            if done or terminal:
-                episode_step = -1
-            episode_step += 1
-
             # increment global step counter
             tf_train_step.assign_add(1)
             train_step += 1
+
+            if done or terminal:
+                episode_step = 0
 
             #########
             # TRAIN #
@@ -325,7 +411,7 @@ class Experiment(object):
                     if loss is not None:
                         history[:, i] = loss
 
-                if train_step % self.args.logs_rate_collect == 0:
+                if train_step % self.args.logs_rate_collect == 0 and self.saving_enabled:
                     metrics = np.mean(history, axis=-1)
                     with logs_writer.as_default():
                         tf.summary.scalar("02_train/q_loss", metrics[0], step=train_step)
@@ -361,6 +447,8 @@ class Experiment(object):
 
         # Core training parameters
         parser.add_argument("--lr", type=float, default=1e-3, help="learning rate for Adam optimizer")
+        parser.add_argument("--decaying-lr", type=float, default=None, help="how much decrease learning rate after patience is exceeded, None means no decay")
+        parser.add_argument("--decaying-lr-patience", type=int, default=2000, help="how many episodes averaged to logs rangewith may be lower than best before lr decay")
         parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
         parser.add_argument("--batch-size", type=int, default=512, help="number of episodes to optimize at the same time")
         parser.add_argument("--steps-per-train", type=int, default=400, help="number of environment steps after which one step of training is performed")
@@ -382,6 +470,10 @@ class Experiment(object):
         parser.add_argument("--render-time", type=float, default=0.1)
         parser.add_argument("--evaluate", action="store_true", default=False)
 
+        # Noise
+        parser.add_argument("--noise-mask", type=str, default="all")
+        parser.add_argument("--noise-mask-value", type=int, default=0, help="how many agents will not be influenced by the noise")
+
         # Inactive
         # parser.add_argument("--benchmark", action="store_true", default=False)
         # parser.add_argument("--benchmark-iters", type=int, default=100000, help="number of iterations run for benchmarking")
@@ -393,14 +485,14 @@ class Experiment(object):
         parser.add_argument("--logs-rate-display", type=int, default=1000, help="how often log will be displayed")
 
         parser.add_argument("--logs-rate-collect", type=int, default=1000, help="how often logs will be collected")
-        parser.add_argument("--metrics-rate-collect", type=int, default=100, help="how often logs will be collected")
+        parser.add_argument("--metrics-rate-collect", type=int, default=2000, help="how often logs will be collected")
         parser.add_argument("--logs-range-collect", type=int, default=1000, help="how many instances will be used for counting averages")
         parser.add_argument("--no-console", action="store_true", default=False)
 
         return parser
 
     def get_env(self):
-        return scenario_environment(scenario_name=self.args.scenario)
+        return scenario_environment(self.args.scenario)
 
     def get_trainers(self):
         raise NotImplemented()

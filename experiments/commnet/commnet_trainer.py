@@ -8,7 +8,7 @@ from maddpg.model.maddpg import Critic
 
 
 class CommnetTrainer(Trainer):
-    def __init__(self, name, n, obs_shape, act_space, args):
+    def __init__(self, name, n, obs_shape, act_space, args, **kwargs):
 
         self.name = name
         self.n = n
@@ -18,8 +18,8 @@ class CommnetTrainer(Trainer):
 
         actor_network_class = CNActorControllerNoComm if args.disable_comm else CNActorController
 
-        self.actors = actor_network_class(act_space=act_space, args=args)
-        self.target_actors = actor_network_class(act_space=act_space, args=args)
+        self.actors = actor_network_class(act_space=act_space, n_agents=n, args=args, **kwargs)
+        self.target_actors = actor_network_class(act_space=act_space,  n_agents=n, args=args, **kwargs)
 
         self.critic = Critic(args=args)
         self.target_critic = Critic(args=args)
@@ -31,6 +31,9 @@ class CommnetTrainer(Trainer):
             "critic": self.critic,
             "target_critic": self.target_critic
         }
+
+    def get_noise_shape(self):
+        return self.actors.noise_shape
 
     @tf.function
     def action(self, obs, mask, ou_s):

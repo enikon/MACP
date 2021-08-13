@@ -1,12 +1,12 @@
 import tensorflow as tf
+import numpy as np
 
 from maddpg.common.distributions import make_pdtype
-import maddpg.common.noise_fn as nfn
 from maddpg.common.tf_util import sample_soft
 
 
 class CNActorController(tf.keras.Model):
-    def __init__(self, act_space, n_agents=3, h_units=256, name="", args=None):
+    def __init__(self, act_space, n_agents, h_units=256, name="", args=None, **kwargs):
         super().__init__(name="CNActorControllerI" + name + "I")
 
         self.act_space = act_space
@@ -16,19 +16,10 @@ class CNActorController(tf.keras.Model):
         self.NO_MASK = tf.zeros(1, dtype=tf.float32)
         self.NO_OU = self.NO_MASK, self.NO_MASK, self.NO_MASK, self.NO_MASK
 
-        self.shape = (1, n_agents, h_units)
+        self.noise_shape = (1, n_agents, h_units)
 
-        self.noise_s_fn = nfn.identity
-        self.noise_r_fn = nfn.generate_noise(
-            shape=self.shape,
-            way=nfn.NoiseNames.WAY_ADD,
-            type=nfn.NoiseNames.TYPE_PROBABILITY,
-            val=nfn.NoiseNames.VALUE_UNIFORM,
-            pck={
-                'prob': 0.2,
-                'range': (-1, 1),
-                'value': 2
-            })
+        self.noise_s_fn, self.noise_s_metric = kwargs['noise_s_fn']
+        self.noise_r_fn, self.noise_r_metric = kwargs['noise_r_fn']
 
         self.n_agents = n_agents
         self.h_units = h_units
@@ -45,7 +36,7 @@ class CNActorController(tf.keras.Model):
         self.output_layer = tf.keras.layers.Dense(act_space.n, bias_initializer='random_normal')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=args.lr, clipnorm=0.5)
 
-        self.extra_metrics = [(None, None, None, None) for _ in range(self.c_layers)]
+        self.extra_metrics = np.empty((4, self.c_layers), dtype=object)
 
     @tf.function
     def call(self, inputs):
@@ -79,16 +70,15 @@ class CNActorController(tf.keras.Model):
         x = h0
 
         for i in range(self.c_layers):
-            # Disabled self communication
-            # in paper it is not disabled (tf.math.reduce_sum(x, axis=1, keepdims=True) / (self.n_agents))
-            # here it is disabled ((tf.math.reduce_sum(x, axis=1, keepdims=True) - x) / (self.n_agents - 1))
 
-            # Should there be a stop gradient
             x_with_noise = self.noise_s_fn(x, mask, (ou_s[0], ou_s[1]))
             ci = (tf.math.reduce_sum(x_with_noise, axis=1, keepdims=True)) / (self.n_agents)
             ci_with_noise = self.noise_r_fn(ci, mask, (ou_s[2], ou_s[3]))
 
-            self.extra_metrics[i] = (x, x_with_noise-x, ci, ci_with_noise-ci)
+            self.extra_metrics[0, i] = x
+            self.extra_metrics[1, i] = self.noise_s_metric(x, mask, (ou_s[0], ou_s[1])) + mask * 0
+            self.extra_metrics[2, i] = ci + mask * 0
+            self.extra_metrics[3, i] = self.noise_r_metric(ci, mask, (ou_s[2], ou_s[3])) + mask * 0
 
             x = self.gru_cell[i](ci_with_noise, states=x)[0]
             x = x + h0
@@ -121,8 +111,8 @@ class CNActorController(tf.keras.Model):
 
 
 class CNActorControllerNoComm(CNActorController):
-    def __init__(self, act_space, n_agents=3, h_units=256, name="", args=None):
-        super().__init__( act_space, n_agents, h_units, name, args)
+    def __init__(self, act_space, n_agents=3, h_units=256, name="", args=None, **kwargs):
+        super().__init__( act_space, n_agents, h_units, name, args, **kwargs)
 
     @tf.function
     def call(self, inputs):

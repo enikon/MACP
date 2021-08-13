@@ -34,6 +34,20 @@ class Scenario(BaseScenario):
                     collisions += 1
         return (rew, collisions, min_dists, occupied_landmarks)
 
+    def completion(self, world):
+        rew = sum_reward(world)
+        collisions = 0
+        for a in world.agents:
+            collisions -= collision_reward(a, world)
+        collisions /= 2
+
+        occupied_landmarks = 0
+        for a, l in zip(world.agents, world.landmarks):
+            if is_collision(a, l):
+                occupied_landmarks += 1
+        max_dists = -max_reward(world)
+        return [rew, collisions, occupied_landmarks, max_dists, 1 if occupied_landmarks == len(world.landmarks) else 0]
+
     def reset_world(self, world):
         world_reset(world)
 

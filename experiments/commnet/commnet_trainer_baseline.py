@@ -7,14 +7,14 @@ from maddpg.common.tf_util import clipnorm, update_target
 
 
 class CommnetTrainer(Trainer):
-    def __init__(self, name, n, obs_shape, act_space, agent_index, args):
+    def __init__(self, name, n, obs_shape, act_space, agent_index, args, **kwargs):
 
         self.name = name
         self.n = n
         self.agent_index = agent_index
         self.args = args
 
-        self.actors = CNActorController(act_space=act_space, args=args)
+        self.actors = CNActorController(act_space=act_space, args=args, **kwargs)
 
     def model_save_dict(self):
         return {

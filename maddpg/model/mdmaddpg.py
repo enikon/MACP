@@ -27,7 +27,9 @@ class MDActorNetwork(tf.keras.Model):
 
         self.action_number = act_space.n
 
-        self.encode_layer = tf.keras.layers.Dense(self.encoder_units, tf.nn.relu)
+        self.encode_layer_1 = tf.keras.layers.Dense(self.encoder_units, tf.nn.relu)
+        self.encode_layer_2 = tf.keras.layers.Dense(self.encoder_units, tf.nn.relu)
+
         self.read_projection = tf.keras.layers.Dense(self.read_units, tf.nn.relu)
 
         self.read_layer = tf.keras.layers.Dense(self.read_units)
@@ -37,15 +39,22 @@ class MDActorNetwork(tf.keras.Model):
         self.remember_layer = tf.keras.layers.Dense(self.memory_units, tf.nn.sigmoid)
         self.forget_layer = tf.keras.layers.Dense(self.memory_units, tf.nn.sigmoid)
 
-        self.action_layer = tf.keras.layers.Dense(self.action_units, tf.nn.relu)
+        self.action_layer_1 = tf.keras.layers.Dense(self.action_units, tf.nn.relu)
+        self.action_layer_2 = tf.keras.layers.Dense(self.action_units, tf.nn.relu)
+
+        self.ou_a_alpha = 0.15 #i.e theta
+        self.ou_a_beta = 0.2 #i.e sigma
+        self.ou_a_mean = 0.05  # i.e mu
+        self.ou_a_dt = 0.01  # i.e mu
 
     @tf.function
     def call(self, *inputs):
         observation, memory = inputs
 
         #ENCODE
-        encode_out = self.encode_layer(observation)
-        obs_encode_out = self.read_projection(encode_out)
+        encode_out_1 = self.encode_layer_1(observation)
+        encode_out_2 = self.encode_layer_2(encode_out_1)
+        obs_encode_out = self.read_projection(encode_out_2)
 
         #READ
         read_out = self.read_layer(obs_encode_out)
@@ -59,10 +68,20 @@ class MDActorNetwork(tf.keras.Model):
 
         #ACTION
         concat = tf.concat([obs_encode_out, read_info_out, memory_new_out], axis=-1)
-        action_out = self.action_layer(concat)
-        output_out = self.output_layer(action_out)
+        action_out_1 = self.action_layer_1(concat)
+        action_out_2 = self.action_layer_2(action_out_1)
+        output_out = self.output_layer(action_out_2)
 
         return output_out, memory_new_out
+
+    @tf.function
+    def sample_ou(self, obs, mem, ou_a):
+        p, m = self.call(obs, mem)
+        ou_res = ou_a + (self.ou_a_mean - ou_a) * self.ou_a_alpha * self.ou_a_dt + self.ou_a_beta * tf.sqrt(self.ou_a_dt) * tf.random.normal(tf.shape(input=p))
+        p_1 = ou_res + p
+
+        tf_action = sample_soft(p_1)
+        return tf_action, m, ou_res
 
     @tf.function
     def sample(self, obs, mem):

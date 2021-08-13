@@ -38,9 +38,19 @@ def world_reset(world):
         agent.state.p_vel = np.zeros(world.dim_p)
         agent.state.c = np.zeros(world.dim_c)
     for i, landmark in enumerate(world.landmarks):
-        landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
-        landmark.state.p_vel = np.zeros(world.dim_p)
+        n = True
+        while n:
+            landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            landmark.state.p_vel = np.zeros(world.dim_p)
+            n = False
+            for j in range(i):
+                n = n or point_dist(landmark, world.landmarks[j]) < world.agents[0].size
 
+
+def point_dist(a1, a2):
+    delta_pos = a1.state.p_pos - a2.state.p_pos
+    dist = np.sqrt(np.sum(np.square(delta_pos)))
+    return dist
 
 def is_collision(agent1, agent2):
     delta_pos = agent1.state.p_pos - agent2.state.p_pos

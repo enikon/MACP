@@ -1,11 +1,17 @@
-from enum import Enum
-
 import tensorflow as tf
 
 
 @tf.function
-def identity(x, m, ou_s):
+def op_identity(x, m, ou_s):
     return x
+
+
+@tf.function
+def metric_identity(x, m, ou_s):
+    return x*0
+
+
+identity = op_identity, metric_identity
 
 
 class NoiseNames:
@@ -18,8 +24,7 @@ class NoiseNames:
     VALUE_CONSTANT = 1
 
 
-def generate_noise(shape,
-                   way=NoiseNames.WAY_ADD,
+def generate_noise(way=NoiseNames.WAY_ADD,
                    type=NoiseNames.TYPE_ALL,
                    val=NoiseNames.VALUE_UNIFORM,
                    pck=None):
@@ -32,22 +37,37 @@ def generate_noise(shape,
     #############
 
     op = None
+    metric = None
+
     if way == NoiseNames.WAY_ADD:
         @tf.function
         def noise_op_add(x, g, y, m):
             return x + tf.stop_gradient(m * g * y)
         op = noise_op_add
+
+        def noise_metric_add(x, g, y, m):
+            return (m * g * y) + x*0
+        metric = noise_metric_add
+
     elif way == NoiseNames.WAY_MUL:
         @tf.function
         def noise_op_mul(x, g, y, m):
             return x * tf.stop_gradient((m * g * y) + (1 - m * g))
         op = noise_op_mul
+
+        def noise_metric_mul(x, g, y, m):
+            return ((m * g * y) + (1 - m * g)) + x*0
+        metric = noise_metric_mul
+
     elif way == NoiseNames.WAY_REP:
         @tf.function
-        def noise_op_mul(x, g, y, m):
+        def noise_op_rep(x, g, y, m):
             return x * tf.stop_gradient((1 - m * g)) + tf.stop_gradient(m * g * y)
+        op = noise_op_rep
 
-        op = noise_op_mul
+        def noise_metric_rep(x, g, y, m):
+            return (m * g * y) + x*0
+        metric = noise_metric_rep
 
     #############
     # NOISE GEN #
@@ -57,7 +77,7 @@ def generate_noise(shape,
     if type == NoiseNames.TYPE_ALL:
         @tf.function
         def gen_all(rand):
-            return tf.ones(shape)
+            return rand*0 + 1
         gen = gen_all
     elif type == NoiseNames.TYPE_PROBABILITY:
         @tf.function
@@ -80,7 +100,7 @@ def generate_noise(shape,
     elif val == NoiseNames.VALUE_CONSTANT:
         @tf.function
         def val_constant(rand):
-            return tf.ones(shape=shape) * pck['value']
+            return rand*0 + pck['value']
         value = val_constant
 
     ################
@@ -91,7 +111,10 @@ def generate_noise(shape,
     def custom_noise(x, m, ou_s):
         return op(x, gen(ou_s[0]), value(ou_s[1]), m)
 
-    return custom_noise
+    def metric_noise(x, m, ou_s):
+        return metric(x, gen(ou_s[0]), value(ou_s[1]), m)
+
+    return custom_noise, metric_noise
 
 
 class NoiseOUManager(object):
@@ -101,7 +124,7 @@ class NoiseOUManager(object):
         self.noise_list = noise_list
 
     def get(self):
-        return self.noise_get[0].state, self.noise_get[1].state, self.noise_get[2].state,self.noise_get[3].state
+        return self.noise_get[0].state, self.noise_get[1].state, self.noise_get[2].state, self.noise_get[3].state
 
     def reset(self):
         for i in self.noise_list:
@@ -115,13 +138,14 @@ class NoiseOUManager(object):
 
 
 class NoiseOU(object):
-    def __init__(self, shape, alpha):
+    def __init__(self, shape, alpha, init_range):
         self.shape = shape
         self.alpha = alpha
         self.state = None
+        self.range = init_range
 
     def reset(self):
-        self.state = tf.random.uniform(self.shape)
+        self.state = tf.random.uniform(self.shape, minval=self.range[0], maxval=self.range[1])
 
     def update(self):
         self.state = self.state + self.alpha * tf.random.uniform(self.shape, minval=-1, maxval=1)
@@ -137,3 +161,16 @@ class NoiseUniform(object):
 
     def update(self):
         self.state = tf.random.uniform(self.shape)
+
+
+class NoiseManagerOUNoCorrelation(NoiseOUManager):
+    def __init__(self, shape):
+        super().__init__(
+            [
+                NoiseUniform(shape),
+                NoiseUniform(shape),
+                NoiseUniform(shape),
+                NoiseUniform(shape)
+            ],
+            [0, 1, 2, 3]
+        )

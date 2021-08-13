@@ -5,7 +5,7 @@
     "num_episodes": null,
     "lr": 0.001,
     "gamma": 0.95,
-    "batch_size": 64,
+    "batch_size": 256,
     "steps_per_train": 100,
     "exp_name": "",
     "save_dir": "/tmp/policy/",
@@ -20,5 +20,17 @@
     "logs_rate_collect": 500,
     "logs_range_collect": 1000,
     "no_console": false,
-    "disable_mem": false
+    "profile": false,
+    "config": null,
+    "render_time": 0.1,
+    "metrics_rate_collect": 2000,
+    "disable_comm": false,
+    "memory_size": 256,
+    "encoder_units": 256,
+    "read_units": 256,
+    "action_units": 256,
+	"communication_length": 256,
+	"communication_steps": 3,
+	"decaying_lr": 0.75,
+    "decaying_lr_patience": 5000
 }
