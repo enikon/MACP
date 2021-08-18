@@ -20,8 +20,10 @@ class NoiseNames:
     WAY_REP = 2
     TYPE_ALL = 0
     TYPE_PROBABILITY = 1
+    TYPE_VARIABLE = 2
     VALUE_UNIFORM = 0
     VALUE_CONSTANT = 1
+    VALUE_VARIABLE = 2
 
 
 def generate_noise(way=NoiseNames.WAY_ADD,
@@ -86,6 +88,15 @@ def generate_noise(way=NoiseNames.WAY_ADD,
                 tf.clip_by_value(rand, 0, 1) - pck['prob']
             ) + 0.5))/2
         gen = gen_choose
+    elif type == NoiseNames.TYPE_VARIABLE:
+        @tf.function
+        def gen_var(rand):
+            rand_val, prob = rand
+            return (1 - tf.sign(tf.sign(
+                tf.clip_by_value(rand, 0, 1) - prob
+            ) + 0.5)) / 2
+
+        gen = gen_var
 
     #########
     # VALUE #
@@ -102,6 +113,12 @@ def generate_noise(way=NoiseNames.WAY_ADD,
         def val_constant(rand):
             return rand*0 + pck['value']
         value = val_constant
+    elif val == NoiseNames.VALUE_VARIABLE:
+        @tf.function
+        def val_var(rand):
+            rand_val, intensity = rand
+            return (tf.clip_by_value(rand_val, 0, 1) * 2 - 1) * intensity
+        value = val_var
 
     ################
     # FINALISATION #

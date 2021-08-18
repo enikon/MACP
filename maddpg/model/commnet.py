@@ -129,3 +129,15 @@ class CNActorControllerNoComm(CNActorController):
         x = self.decoder(x)
         x = self.output_layer(x)
         return x
+
+
+class CNActorControllerAdapting(CNActorController):
+    def __init__(self, act_space, n_agents=3, h_units=256, name="", args=None, **kwargs):
+        super().__init__( act_space, n_agents, h_units, name, args, **kwargs)
+        self.adapting = kwargs['noise_adapting']
+        self.NO_OU = (
+            (self.NO_MASK, self.NO_MASK) if self.adapting[0] else self.NO_MASK,
+            (self.NO_MASK, self.NO_MASK) if self.adapting[1] else self.NO_MASK,
+            (self.NO_MASK, self.NO_MASK) if self.adapting[2] else self.NO_MASK,
+            (self.NO_MASK, self.NO_MASK) if self.adapting[3] else self.NO_MASK
+        )

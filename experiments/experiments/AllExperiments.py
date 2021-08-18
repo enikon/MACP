@@ -9,7 +9,7 @@ if __name__ == "__main__":
     ExperimentFullCommunication()
     ExperimentFullNoise()
     for i in [0.5, 1.0, 2.0]:
-        ExperimentBackground(correlation=False,intensity=i)
+        ExperimentBackground(correlation=False, intensity=i)
     ExperimentBackground(correlation=True, intensity=1.0)
 
     for i in [0.1, 0.2, 0.3]:

@@ -60,6 +60,12 @@ class Experiment(object):
 
         #self.args.max_episode_len = 2 # Fast debug
 
+        self.noise_adapting = None
+        self.noise_adapting_value = tf.constant(0., dtype=tf.float32)
+        self.noise_adapting_value_iterator = tf.constant(0., dtype=tf.float32)
+        self.noise_adapting_speed = tf.constant(0., dtype=tf.float32)
+        self.noise_adapting_max = tf.constant(1., dtype=tf.float32)
+
     def init(self):
 
         #############################
@@ -252,6 +258,9 @@ class Experiment(object):
 
                 episode_info[1, episode_number % self.args.logs_range_collect] = episode_step
                 episode_number += 1
+
+                self.noise_adapting_value_iterator += self.noise_adapting_speed
+                self.noise_adapting_value = tf.clip_by_value(self.noise_adapting_value_iterator, 0, self.noise_adapting_max)
 
                 # LR Decay
                 if using_decay:

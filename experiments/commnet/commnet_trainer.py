@@ -2,7 +2,7 @@ from experiments.Trainer import Trainer
 import numpy as np
 import tensorflow as tf
 
-from maddpg.model.commnet import CNActorController, CNActorControllerNoComm
+from maddpg.model.commnet import CNActorController, CNActorControllerNoComm, CNActorControllerAdapting
 from maddpg.common.tf_util import clipnorm, update_target
 from maddpg.model.maddpg import Critic
 
@@ -17,6 +17,7 @@ class CommnetTrainer(Trainer):
         self.polyak_rate_iterator = 0
 
         actor_network_class = CNActorControllerNoComm if args.disable_comm else CNActorController
+        actor_network_class = CNActorControllerAdapting if kwargs['noise_adapting'] is not None else actor_network_class
 
         self.actors = actor_network_class(act_space=act_space, n_agents=n, args=args, **kwargs)
         self.target_actors = actor_network_class(act_space=act_space,  n_agents=n, args=args, **kwargs)
