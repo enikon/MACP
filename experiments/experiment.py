@@ -186,6 +186,7 @@ class Experiment(object):
         running = True
 
         # Profiling if enabled
+        not_graphed=True
         profiling = 0
         if self.args.profile:
             from tensorflow.python.profiler import profiler_v2 as profiler
@@ -276,7 +277,7 @@ class Experiment(object):
                         for t in self.trainers:
                             for n in t.get_networks():
                                 new_lr = n.optimizer.learning_rate * self.args.decaying_lr
-                                c_lr = new_lr
+                                c_lr = new_lr if self.args.decaying_lr_limit is None else max(new_lr, self.args.decaying_lr_limit)
                                 n.optimizer.learning_rate.assign(c_lr)
                         print('New learning rate:'+str(c_lr))
 
@@ -416,7 +417,14 @@ class Experiment(object):
 
                 for i, agent in enumerate(self.trainers):
                     exp = self.train_experience(self.replay_buffer_n[i])
-                    loss = agent.update(self.trainers, exp)
+                    if self.args.graph and not_graphed:
+                        tf.summary.trace_on(graph=True)
+                        loss = agent.update(self.trainers, exp)
+                        with logs_writer.as_default():
+                            tf.summary.trace_export(name='train_func', step=0)
+                        not_graphed = False
+                    else:
+                        loss = agent.update(self.trainers, exp)
                     if loss is not None:
                         history[:, i] = loss
 
@@ -448,6 +456,7 @@ class Experiment(object):
         # Computing
         parser.add_argument("--GPU", action="store_true", default=False)
         parser.add_argument("--profile", action="store_true", default=False)
+        parser.add_argument("--graph", action="store_true", default=False)
 
         # Environment
         parser.add_argument("--scenario", type=str, default="simple_spread_random", help="name of the scenario script")
@@ -458,6 +467,8 @@ class Experiment(object):
         parser.add_argument("--lr", type=float, default=1e-3, help="learning rate for Adam optimizer")
         parser.add_argument("--decaying-lr", type=float, default=None, help="how much decrease learning rate after patience is exceeded, None means no decay")
         parser.add_argument("--decaying-lr-patience", type=int, default=2000, help="how many episodes averaged to logs rangewith may be lower than best before lr decay")
+        parser.add_argument("--decaying-lr-limit", type=float, default=None, help="what is the minimum learning rate using decay")
+
         parser.add_argument("--gamma", type=float, default=0.95, help="discount factor")
         parser.add_argument("--batch-size", type=int, default=512, help="number of episodes to optimize at the same time")
         parser.add_argument("--steps-per-train", type=int, default=400, help="number of environment steps after which one step of training is performed")

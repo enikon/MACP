@@ -40,7 +40,15 @@ class CNActorController(tf.keras.Model):
 
     @tf.function
     def call(self, inputs):
-        x, mask, ou_s = inputs
+        x, mask__, ou_s__ = inputs
+        mask = tf.stop_gradient(mask__)
+        ou_s = (
+            tf.stop_gradient(ou_s__[0]),
+            tf.stop_gradient(ou_s__[1]),
+            tf.stop_gradient(ou_s__[2]),
+            tf.stop_gradient(ou_s__[3])
+        )
+
         x = self.encoder(x)
         h0 = self.encoder_2(x)
         x = h0
@@ -76,9 +84,9 @@ class CNActorController(tf.keras.Model):
             ci_with_noise = self.noise_r_fn(ci, mask, (ou_s[2], ou_s[3]))
 
             self.extra_metrics[0, i] = x
-            self.extra_metrics[1, i] = self.noise_s_metric(x, mask, (ou_s[0], ou_s[1])) + mask * 0
+            self.extra_metrics[1, i] = x_with_noise + mask * 0
             self.extra_metrics[2, i] = ci + mask * 0
-            self.extra_metrics[3, i] = self.noise_r_metric(ci, mask, (ou_s[2], ou_s[3])) + mask * 0
+            self.extra_metrics[3, i] = ci_with_noise + mask * 0
 
             x = self.gru_cell[i](ci_with_noise, states=x)[0]
             x = x + h0

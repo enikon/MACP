@@ -64,7 +64,7 @@ def generate_noise(way=NoiseNames.WAY_ADD,
     elif way == NoiseNames.WAY_REP:
         @tf.function
         def noise_op_rep(x, g, y, m):
-            return x * tf.stop_gradient((1 - m * g)) + tf.stop_gradient(m * g * y)
+            return x * tf.stop_gradient((1. - m * g)) + tf.stop_gradient((m * g * y))
         op = noise_op_rep
 
         def noise_metric_rep(x, g, y, m):
@@ -79,22 +79,22 @@ def generate_noise(way=NoiseNames.WAY_ADD,
     if type == NoiseNames.TYPE_ALL:
         @tf.function
         def gen_all(rand):
-            return rand*0 + 1
+            return rand*0. + 1.
         gen = gen_all
     elif type == NoiseNames.TYPE_PROBABILITY:
         @tf.function
         def gen_choose(rand):
-            return (1 - tf.sign(tf.sign(
-                tf.clip_by_value(rand, 0, 1) - pck['prob']
-            ) + 0.5))/2
+            return (1. - tf.sign(tf.sign(
+                tf.clip_by_value(rand, 0., 1.) - pck['prob']
+            ) + 0.5))/2.
         gen = gen_choose
     elif type == NoiseNames.TYPE_VARIABLE:
         @tf.function
         def gen_var(rand):
             rand_val, prob = rand
-            return (1 - tf.sign(tf.sign(
-                tf.clip_by_value(rand, 0, 1) - prob
-            ) + 0.5)) / 2
+            return (1. - tf.sign(tf.sign(
+                tf.clip_by_value(rand, 0., 1.) - prob
+            ) + 0.5)) / 2.
 
         gen = gen_var
 
@@ -106,18 +106,18 @@ def generate_noise(way=NoiseNames.WAY_ADD,
     if val == NoiseNames.VALUE_UNIFORM:
         @tf.function
         def val_random(rand):
-            return tf.clip_by_value(rand, 0, 1) * (pck['range'][1] - pck['range'][0]) + pck['range'][0]
+            return tf.clip_by_value(rand, 0., 1.) * (pck['range'][1] - pck['range'][0]) + pck['range'][0]
         value = val_random
     elif val == NoiseNames.VALUE_CONSTANT:
         @tf.function
         def val_constant(rand):
-            return rand*0 + pck['value']
+            return rand*0. + pck['value']
         value = val_constant
     elif val == NoiseNames.VALUE_VARIABLE:
         @tf.function
         def val_var(rand):
             rand_val, intensity = rand
-            return (tf.clip_by_value(rand_val, 0, 1) * 2 - 1) * intensity
+            return (tf.clip_by_value(rand_val, 0, 1) * 2. - 1.) * intensity
         value = val_var
 
     ################
@@ -126,7 +126,7 @@ def generate_noise(way=NoiseNames.WAY_ADD,
 
     @tf.function
     def custom_noise(x, m, ou_s):
-        return op(x, gen(ou_s[0]), value(ou_s[1]), m)
+        return op(x, tf.stop_gradient(gen(ou_s[0])), tf.stop_gradient(value(ou_s[1])), m)
 
     def metric_noise(x, m, ou_s):
         return metric(x, gen(ou_s[0]), value(ou_s[1]), m)

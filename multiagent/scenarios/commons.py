@@ -69,10 +69,18 @@ def permutation_utils(world):
 
 
 def permutation_reward(world, _permutation_utils):
-        apos = np.array([a.state.p_pos for a in world.agents])
-        lpos = np.array([l.state.p_pos for l in world.landmarks])
-        dists = np.sqrt([np.sum(np.square(apos[:, None, :] - lpos[None, :, :]), axis=-1)])
-        return -np.min(np.sum(dists * _permutation_utils, axis=(-1, -2)))
+    apos = np.array([a.state.p_pos for a in world.agents])
+    lpos = np.array([l.state.p_pos for l in world.landmarks])
+    dists = np.sqrt([np.sum(np.square(apos[:, None, :] - lpos[None, :, :]), axis=-1)])
+    return -np.min(np.sum(dists * _permutation_utils, axis=(-1, -2)))
+
+
+def permutation_max_reward(world, _permutation_utils):
+    apos = np.array([a.state.p_pos for a in world.agents])
+    lpos = np.array([l.state.p_pos for l in world.landmarks])
+    dists = np.sqrt([np.sum(np.square(apos[:, None, :] - lpos[None, :, :]), axis=-1)])
+    index = np.argmin(np.sum(dists * _permutation_utils, axis=(-1, -2)))
+    return -np.max((dists * _permutation_utils)[index])
 
 
 def collision_reward(agent, world):

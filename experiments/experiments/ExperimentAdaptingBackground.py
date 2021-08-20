@@ -5,7 +5,7 @@ import tensorflow as tf
 
 class ExperimentAdaptingBackground(CommnetExperiment):
     def __init__(self, correlation=False, intensity_range=(0.0, 1.0), speed=1.0/60000.0):
-        super(ExperimentAdaptingBackground, self).__init__(name='background-'+('corr-' if correlation else 'nocorr-')+(str(speed))+'-'+(str(intensity_range[0]))+'-'+(str(intensity_range[1]))+'-commnet', args={'num_episodes': 60000})
+        super(ExperimentAdaptingBackground, self).__init__(name='adapt_background-'+('corr-' if correlation else 'nocorr-')+(str(speed))+'-'+(str(intensity_range[0]))+'-'+(str(intensity_range[1]))+'-commnet', args={'num_episodes': 60000})
 
         self.noise_r_fn = nfn.generate_noise(
             way=nfn.NoiseNames.WAY_ADD,
