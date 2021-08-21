@@ -35,7 +35,7 @@ class CommnetExperiment(Experiment):
         pass
 
     def init_buffer(self):
-        return NReplayBuffer(int(1e6), 6)
+        return NReplayBuffer(int(1e6), 7)
 
     def reset_loop(self):
         self.ou_manager.reset()
@@ -71,9 +71,9 @@ class CommnetExperiment(Experiment):
         return tf.math.reduce_euclidean_norm(stacked_metrics, (2, 3, 5))
         #tf.math.reduce_variance(stacked_metrics, (-1, 2))
 
-    def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal):
+    def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal, mask):
         for i, agent in enumerate(self.trainers):
-            self.replay_buffer_n[i].add(obs_n, action_n, rew_n[0], new_obs_n, np.product(done_n), terminal)
+            self.replay_buffer_n[i].add(obs_n, action_n, rew_n[0], new_obs_n, np.product(done_n), terminal, mask)
 
     def train_experience(self, buffer):
 
@@ -85,11 +85,11 @@ class CommnetExperiment(Experiment):
         act_n = []
 
         for b in self.replay_buffer_n:
-            obs, act, _, obs_next, _, _ = b.sample_index(index)
+            obs, act, _, obs_next, _, _, _ = b.sample_index(index)
             obs_n.append(obs)
             obs_next_n.append(obs_next)
             act_n.append(act)
-        obs, act, rew, obs_next, done, _ = buffer.sample_index(index)
+        obs, act, rew, obs_next, done, _, mask = buffer.sample_index(index)
 
         return {
             "obs_n": obs_n,
@@ -99,7 +99,8 @@ class CommnetExperiment(Experiment):
             "act": act,
             "rew": rew,
             "obs_next": obs_next,
-            "done": done
+            "done": done,
+            "mask": mask
         }
 
     def get_trainers(self):

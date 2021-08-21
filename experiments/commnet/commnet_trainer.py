@@ -42,15 +42,16 @@ class CommnetTrainer(Trainer):
         return p
 
     def update(self, agents, experience):
+        mask = experience["mask"]
         obs_n = [tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx()) for i in experience["obs_n"]]
         act_n = [tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx()) for i in experience["act_n"]]
         obs_next_n = [tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx()) for i in experience["obs_next_n"]]
 
-        q_loss, p_loss, target_q, target_q_next = self._update(agents, experience, obs_n, act_n, obs_next_n)
+        q_loss, p_loss, target_q, target_q_next = self._update(agents, experience, obs_n, act_n, obs_next_n, mask)
         return np.array([q_loss, p_loss, np.mean(target_q), np.mean(experience["rew"]), np.mean(target_q_next), np.std(target_q)])
 
     @tf.function
-    def _update(self, agents, experience, obs_n, act_n, obs_next_n):
+    def _update(self, agents, experience, obs_n, act_n, obs_next_n, mask):
         cct_obs, cct_act = tf.concat(obs_n, -1), tf.concat(act_n, -1)
         cct_obs_next = tf.concat(obs_next_n, -1)
 
@@ -64,7 +65,7 @@ class CommnetTrainer(Trainer):
         target_q_next = None
 
         for i in range(num_sample):
-            target_act_next_a_n = self.target_actors.sample(cct_obs_next)
+            target_act_next_a_n = self.target_actors.sample(cct_obs_next, mask)
             target_q_next = self.target_critic.eval1(
                 tf.concat(
                     (ustck_obs, tf.squeeze(tf.concat(tf.unstack(target_act_next_a_n, axis=-2), -1))),
@@ -82,7 +83,7 @@ class CommnetTrainer(Trainer):
         self.critic.optimizer.apply_gradients(zip(clipnorm(critic_grad, 0.5), self.critic.trainable_weights))
 
         with tf.GradientTape() as tape_p:
-            act, act_pd = self.actors.sample_reg(cct_obs)
+            act, act_pd = self.actors.sample_reg(cct_obs, mask)
             unstck_act_p = tf.squeeze(tf.concat(tf.unstack(act, axis=-2), -1))
 
             q = self.critic.eval(tf.concat((ustck_obs, unstck_act_p), -1))

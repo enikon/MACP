@@ -40,14 +40,7 @@ class CNActorController(tf.keras.Model):
 
     @tf.function
     def call(self, inputs):
-        x, mask__, ou_s__ = inputs
-        mask = tf.stop_gradient(mask__)
-        ou_s = (
-            tf.stop_gradient(ou_s__[0]),
-            tf.stop_gradient(ou_s__[1]),
-            tf.stop_gradient(ou_s__[2]),
-            tf.stop_gradient(ou_s__[3])
-        )
+        x, mask, ou_s = inputs
 
         x = self.encoder(x)
         h0 = self.encoder_2(x)
@@ -94,8 +87,9 @@ class CNActorController(tf.keras.Model):
         return self.extra_metrics
 
     @tf.function
-    def sample(self, obs):
+    def sample(self, obs, mask):
         p = self.call((obs, self.NO_MASK, self.NO_OU))
+        #p = self.call((obs, mask, self.NO_OU))
         tf_action = sample_soft(p)
         return tf_action
 
@@ -107,7 +101,7 @@ class CNActorController(tf.keras.Model):
 
     # must already doing log(softmax(p) + bias) and mean(sigmoid)
     @tf.function
-    def sample_reg(self, obs):
+    def sample_reg(self, obs, mask):
         p = self.call((obs, self.NO_MASK, self.NO_OU))
         tf_action = sample_soft(p)
         return tf_action, p
