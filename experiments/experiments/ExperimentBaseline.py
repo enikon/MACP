@@ -45,3 +45,16 @@ class ExperimentFullNoise(CommnetExperiment):
         self.ou_manager = nfn.NoiseManagerOUNoCorrelation(shape)
         self.init()
 
+
+class ExperimentDisabledCommunication(CommnetExperiment):
+    def __init__(self):
+        super(ExperimentDisabledCommunication, self).__init__(name='dis-comm-commnet', args={'num_episodes': 60000, 'scenario': 'simple_reference_spread', 'disable_comm': True})
+
+        self.noise_r_fn = nfn.identity
+        self.noise_s_fn = nfn.identity
+
+        self.trainers = self.get_trainers()
+
+        shape = self.trainers[0].get_noise_shape()
+        self.ou_manager = nfn.NoiseManagerOUNoCorrelation(shape)
+        self.init()
