@@ -87,7 +87,7 @@ def collision_reward(agent, world):
     rew = 0
     if agent.collide:
         for a in world.agents:
-            if is_collision(a, agent):
+            if agent is not a and is_collision(a, agent):
                 rew -= 1
     return rew
 

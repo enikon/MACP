@@ -4,7 +4,7 @@ import tensorflow as tf
 
 
 class ExperimentAdaptingBackground(CommnetExperiment):
-    def __init__(self, correlation=False, intensity_range=(0.0, 1.0), speed=1.0/60000.0):
+    def __init__(self, correlation=False, intensity_range=(0.0, 1.0), max_lim=1.0, speed=1.0/60000.0):
         super(ExperimentAdaptingBackground, self).__init__(name='adapt_background-'+('corr-' if correlation else 'nocorr-')+(str(speed))+'-'+(str(intensity_range[0]))+'-'+(str(intensity_range[1]))+'-commnet',
                                                            args={'num_episodes': 60000})
 
@@ -22,7 +22,7 @@ class ExperimentAdaptingBackground(CommnetExperiment):
         self.noise_adapting = [False, True, False, True]
         self.noise_adapting_value_iterator = tf.constant(intensity_range[0], dtype=tf.float32)
         self.noise_adapting_speed = tf.constant(speed, dtype=tf.float32)
-        self.noise_adapting_max = tf.constant(intensity_range[1], dtype=tf.float32)
+        self.noise_adapting_max = tf.constant(max_lim, dtype=tf.float32)
 
         self.trainers = self.get_trainers()
         shape = self.trainers[0].get_noise_shape()
@@ -39,4 +39,42 @@ class ExperimentAdaptingBackground(CommnetExperiment):
                 [0, 1, 0, 2]
             )
 
+        self.init()
+
+
+class ExperimentAdaptingRetention(CommnetExperiment):
+    def __init__(self, correlation=False, intensity_range=(0.0, 1.0), max_lim=1.0, speed=1.0/60000.0):
+        super(ExperimentAdaptingRetention, self).__init__(name='adapt_retention-'+('corr-' if correlation else 'nocorr-')+(str(speed))+'-'+(str(intensity_range[0]))+'-'+(str(intensity_range[1]))+'-commnet',
+                                                           args={'num_episodes': 60000})
+
+        self.noise_r_fn = nfn.generate_noise(
+            way=nfn.NoiseNames.WAY_REP,
+            type=nfn.NoiseNames.TYPE_VARIABLE,
+            val=nfn.NoiseNames.VALUE_UNIFORM,
+            pck={
+                'range': (-1.0, 1.0),
+                'prob': 0.4
+            }
+        )
+
+        self.noise_s_fn = nfn.identity
+
+        self.noise_adapting = [False, False, True, False]
+        self.noise_adapting_value_iterator = tf.constant(intensity_range[0], dtype=tf.float32)
+        self.noise_adapting_speed = tf.constant(speed, dtype=tf.float32)
+        self.noise_adapting_max = tf.constant(max_lim, dtype=tf.float32)
+
+        self.trainers = self.get_trainers()
+        shape = self.trainers[0].get_noise_shape()
+
+        if not correlation:
+            self.ou_manager = nfn.NoiseManagerOUNoCorrelation(shape)
+        else:
+            self.ou_manager = nfn.NoiseOUManager(
+                [
+                    nfn.NoiseUniform(shape),  # sgi, svi, rvi
+                    nfn.NoiseOU(shape, 0.02, (0, 1))  # rgi
+                ],
+                [0, 0, 1, 0]
+            )
         self.init()

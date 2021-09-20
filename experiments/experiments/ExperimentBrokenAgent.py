@@ -15,7 +15,7 @@ class ExperimentBrokenAgent(CommnetExperiment):
                     'range': (-1.0, 1.0)
                 }
             )
-        else:
+        elif repMul == 1:
             self.noise_s_fn = nfn.generate_noise(
                 way=nfn.NoiseNames.WAY_MUL,
                 type=nfn.NoiseNames.TYPE_ALL,
@@ -24,6 +24,16 @@ class ExperimentBrokenAgent(CommnetExperiment):
                     'range': (-5.0, 5.0)
                 }
             )
+        elif repMul == 2:
+            self.noise_s_fn = nfn.generate_noise(
+                way=nfn.NoiseNames.WAY_MUL,
+                type=nfn.NoiseNames.TYPE_ALL,
+                val=nfn.NoiseNames.VALUE_CONSTANT,
+                pck={
+                    'value': 1.0
+                }
+            )
+
 
         self.noise_r_fn = nfn.identity
         self.trainers = self.get_trainers()

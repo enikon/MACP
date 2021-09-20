@@ -77,9 +77,9 @@ class CNActorController(tf.keras.Model):
             ci_with_noise = self.noise_r_fn(ci, mask, (ou_s[2], ou_s[3]))
 
             self.extra_metrics[0, i] = x
-            self.extra_metrics[1, i] = x_with_noise + mask * 0
+            self.extra_metrics[1, i] = (x_with_noise - x) + mask * 0
             self.extra_metrics[2, i] = ci + mask * 0
-            self.extra_metrics[3, i] = ci_with_noise + mask * 0
+            self.extra_metrics[3, i] = (ci_with_noise - ci) + mask * 0
 
             x = self.gru_cell[i](ci_with_noise, states=x)[0]
             x = x + h0

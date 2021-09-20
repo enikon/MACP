@@ -10,7 +10,7 @@ if __name__ == "__main__":
     # for i in [0.1, 0.2, 0.3]:
     #     ExperimentRetention(correlation=False, probability=i)
 
-    #ExperimentRetention(correlation=True, probability=0.2)
+    ExperimentAbsoluteValue()
     #ExperimentRetention(correlation=False, probability=0.3)
 
     #for i in [0.1, 0.3]:
@@ -19,4 +19,4 @@ if __name__ == "__main__":
     #ExperimentFullCommunication()
     #ExperimentDisabledCommunication()
 
-    ExperimentBrokenAgent(repMul=0, type='fixed')
+    #ExperimentBrokenAgent(repMul=1, type='fixed')

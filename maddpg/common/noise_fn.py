@@ -93,7 +93,7 @@ def generate_noise(way=NoiseNames.WAY_ADD,
         def gen_var(rand):
             rand_val, prob = rand
             return (1. - tf.sign(tf.sign(
-                tf.clip_by_value(rand, 0., 1.) - prob
+                tf.clip_by_value(rand_val, 0., 1.) - prob
             ) + 0.5)) / 2.
 
         gen = gen_var

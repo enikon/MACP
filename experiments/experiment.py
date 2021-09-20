@@ -78,7 +78,7 @@ class Experiment(object):
         datetime_str = datetime.now().strftime("%Y%m%d-%H%M%S")
         experiment_full_name =\
             ('' if self.args.exp_name == '' else self.args.exp_name+'_') + \
-            ('train_' if not self.args.evaluate else 'eval_') + \
+            ('train_' if not self.args.evaluate else 'evalC_') + \
             (str(self.name)+'_') + \
             datetime_str
         experiment_direction = os.path.join(self.args.save_dir, experiment_full_name, '')
@@ -124,7 +124,10 @@ class Experiment(object):
 
         if self.args.restore or self.args.restore_best:
             print('Loading previous state...')
-            loader.restore_or_initialize()
+            test = loader.restore_or_initialize()
+            if test is None:
+                print('Wrong path!!!')
+                return
 
         best_value = float('-inf')
 
@@ -319,7 +322,8 @@ class Experiment(object):
                                 train_step+1, episode_number, best_value_candidate))
 
                 if self.args.num_episodes is not None and episode_number >= self.args.num_episodes and self.saving_enabled:
-                    saver.save()
+                    if not self.args.evaluate:
+                        saver.save()
                     print("Training completed:\n\t steps: {}, episodes: {}, time: {}".format(
                         train_step+1, episode_number, round(time.time() - f_start, 3)))
                     running = False

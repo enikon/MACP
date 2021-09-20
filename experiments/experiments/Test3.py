@@ -7,8 +7,22 @@ from experiments.experiments.ExperimentBrokenAgent import *
 
 
 if __name__ == "__main__":
-    for i in [0.1, 0.3, 0.4, 0.5]:
-         ExperimentRetention(correlation=True, probability=i)
+
+    #ExperimentRetention(correlation=False, probability=0.0)
+
+    #ExperimentBackground(correlation=False, intensity=0.3)
+    #ExperimentBackground(correlation=False, intensity=1.0)
+    #ExperimentBackground(correlation=False, intensity=2.0)
+
+    #ExperimentBackground(correlation=True, intensity=0.1)
+
+    #ExperimentBackground(correlation=False, intensity=2.0)
+    #ExperimentBackground(correlation=True, intensity=0.3)
+    #ExperimentBackground(correlation=True, intensity=1.0)
+    ExperimentBackground(correlation=False, intensity=2.0)
+
+
+
     #ExperimentRetention(correlation=False, probability=0.4)
     #ExperimentRetention(correlation=False, probability=0.5)
 
