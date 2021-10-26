@@ -126,7 +126,9 @@ def generate_noise(way=NoiseNames.WAY_ADD,
 
     @tf.function
     def custom_noise(x, m, ou_s):
-        return op(x, tf.stop_gradient(gen(ou_s[0])), tf.stop_gradient(value(ou_s[1])), m)
+        gen_ou = gen(ou_s[0])
+        value_ou = value(ou_s[1])
+        return op(x, tf.stop_gradient(gen_ou), tf.stop_gradient(value_ou), m)
 
     def metric_noise(x, m, ou_s):
         return metric(x, gen(ou_s[0]), value(ou_s[1]), m)
@@ -162,10 +164,12 @@ class NoiseOU(object):
         self.range = init_range
 
     def reset(self):
-        self.state = tf.random.uniform(self.shape, minval=self.range[0], maxval=self.range[1])
+        self.state = [tf.random.uniform(i, minval=self.range[0], maxval=self.range[1]) for i in self.shape]
 
     def update(self):
-        self.state = self.state + self.alpha * tf.random.uniform(self.shape, minval=-1, maxval=1)
+        self.state = [
+            self.state[i] + self.alpha * tf.random.uniform(self.shape[i], minval=-1, maxval=1) for i in len(self.state)
+        ]
 
 
 class NoiseUniform(object):
@@ -174,10 +178,10 @@ class NoiseUniform(object):
         self.state = None
 
     def reset(self):
-        self.state = tf.random.uniform(self.shape)
+        self.state = [tf.random.uniform(i) for i in self.shape]
 
     def update(self):
-        self.state = tf.random.uniform(self.shape)
+        self.state = [tf.random.uniform(i) for i in self.shape]
 
 
 class NoiseManagerOUNoCorrelation(NoiseOUManager):

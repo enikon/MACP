@@ -5,11 +5,11 @@ import maddpg.common.noise_fn as nfn
 
 
 class CommnetExperiment(Experiment):
-    def __init__(self, name='commnet', args=None):
+    def __init__(self, trainer=CommnetTrainer, name='commnet', args=None):
         super(CommnetExperiment, self).__init__(
             self.get_env,
-            CommnetTrainer,
-            name=name,
+            trainer=trainer,
+            name=name+(str(args['pub']) if args is not None else ''),
             args=args
         )
 
@@ -27,15 +27,15 @@ class CommnetExperiment(Experiment):
     def parser(self):
         parser = super().parser()
         parser.add_argument("--disable-comm", action="store_true", default=False)
-        parser.add_argument("--communication_length", type=int, default=256, help="size of the communication vector")
-        parser.add_argument("--communication_steps", type=int, default=2, help="number of communication messages sent")
+        parser.add_argument("--communication-length", type=int, default=256, help="size of the communication vector")
+        parser.add_argument("--communication-steps", type=int, default=2, help="number of communication messages sent")
         return parser
 
     def init_loop(self):
         pass
 
     def init_buffer(self):
-        return NReplayBuffer(int(1e6), 7)
+        return NReplayBuffer(int(5e5), 7)
 
     def reset_loop(self):
         self.ou_manager.reset()
@@ -46,8 +46,8 @@ class CommnetExperiment(Experiment):
         self.ou_manager.update()
         ou_s = self.ou_manager.get()
 
-        if self.noise_adapting is not None:
-            ou_s = self.expand_adapting(ou_s)
+        # if self.noise_adapting is not None:
+        #     ou_s = self.expand_adapting(ou_s)
 
         for i, agent in enumerate(self.trainers):
             act = agent.action(np.array(obs_n), mask, ou_s)
@@ -58,8 +58,8 @@ class CommnetExperiment(Experiment):
         ou_s = self.ou_manager.get()
         metrics = [None for _ in range(4)]
 
-        if self.noise_adapting is not None:
-            ou_s = self.expand_adapting(ou_s)
+        # if self.noise_adapting is not None:
+        #     ou_s = self.expand_adapting(ou_s)
 
         for agent in self.trainers: #there is only one trainer in commnet, can be ignored
             m = agent.actors.metrics_call(
@@ -113,17 +113,18 @@ class CommnetExperiment(Experiment):
                 self.args,
                 noise_r_fn=self.noise_r_fn,
                 noise_s_fn=self.noise_s_fn,
-                noise_adapting=self.noise_adapting
+                noise_adapting=self.noise_adapting,
+                pub=self.args.pub
             )
         ]
 
-    def expand_adapting(self, ou_s):
-        return (
-            (ou_s[0], self.noise_adapting_value) if self.noise_adapting[0] else ou_s[0],
-            (ou_s[1], self.noise_adapting_value) if self.noise_adapting[1] else ou_s[1],
-            (ou_s[2], self.noise_adapting_value) if self.noise_adapting[2] else ou_s[2],
-            (ou_s[3], self.noise_adapting_value) if self.noise_adapting[3] else ou_s[3]
-        )
+    # def expand_adapting(self, ou_s):
+    #     return (
+    #         (ou_s[0], self.noise_adapting_value) if self.noise_adapting[0] else ou_s[0],
+    #         (ou_s[1], self.noise_adapting_value) if self.noise_adapting[1] else ou_s[1],
+    #         (ou_s[2], self.noise_adapting_value) if self.noise_adapting[2] else ou_s[2],
+    #         (ou_s[3], self.noise_adapting_value) if self.noise_adapting[3] else ou_s[3]
+    #     )
 
 
 if __name__ == '__main__':

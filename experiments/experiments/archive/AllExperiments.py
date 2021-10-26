@@ -1,8 +1,8 @@
-from experiments.experiments.ExperimentBaseline import *
-from experiments.experiments.ExperimentBackground import *
-from experiments.experiments.ExperimentRetention import *
-from experiments.experiments.ExperimentOther import *
-from experiments.experiments.ExperimentBrokenAgent import *
+from experiments.experiments.archive.ExperimentBaseline import *
+from experiments.experiments.archive.ExperimentBackground import *
+from experiments.experiments.archive.ExperimentRetention import *
+from experiments.experiments.archive.ExperimentOther import *
+from experiments.experiments.archive.ExperimentBrokenAgent import *
 
 
 if __name__ == "__main__":

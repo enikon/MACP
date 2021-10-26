@@ -11,6 +11,9 @@ from experiments.environmenter import scenario_environment
 
 import json
 
+ignore_noise_metrics = False
+manual_curriculum = False
+
 
 class Experiment(object):
     def __init__(self, environment, trainer, name, args=None):
@@ -236,10 +239,12 @@ class Experiment(object):
             if episode_number % self.args.metrics_rate_collect == 0 and self.saving_enabled:
                 metrics_i = int((episode_number / self.args.metrics_rate_collect) % self.args.logs_range_collect)
                 if episode_step == 0:
-                    episode_metrics[:, :, :, metrics_i] = self.collect_metrics(obs_n, mask)
+                    if not ignore_noise_metrics:
+                        episode_metrics[:, :, :, metrics_i] = self.collect_metrics(obs_n, mask)
                     benchmark_metrics[:, metrics_i] = np.array(self.environment._get_benchmark())
                 else:
-                    episode_metrics[:, :, :, metrics_i] += self.collect_metrics(obs_n, mask)
+                    if not ignore_noise_metrics:
+                        episode_metrics[:, :, :, metrics_i] += self.collect_metrics(obs_n, mask)
                     #rew, collision, occupied, max
                     benchmarks = self.environment._get_benchmark()
                     benchmark_metrics[0, metrics_i] += benchmarks[0]
@@ -321,27 +326,20 @@ class Experiment(object):
                             print("Saved best:\n\t steps: {}, episodes: {}, mean episode reward: {}".format(
                                 train_step+1, episode_number, best_value_candidate))
 
-                if self.args.num_episodes is not None and episode_number >= self.args.num_episodes and self.saving_enabled:
-                    if not self.args.evaluate:
-                        saver.save()
-                    print("Training completed:\n\t steps: {}, episodes: {}, time: {}".format(
-                        train_step+1, episode_number, round(time.time() - f_start, 3)))
-                    running = False
-                # End printing
-
                 if episode_number % self.args.logs_rate_collect == 0 and self.saving_enabled:
-                    #__noise = np.nanmean(episode_metrics / self.args.max_episode_len, axis=(-1, -2))
+                    if not ignore_noise_metrics:
+                        __noise = np.nanmean(episode_metrics / self.args.max_episode_len, axis=(-1, -2))
 
-                    t__noise, t__noise_special = None, None
-                    metrics_i = int(
-                        ((episode_number - 1) / self.args.metrics_rate_collect) % self.args.logs_range_collect)
+                        t__noise, t__noise_special = None, None
+                        metrics_i = int(
+                            ((episode_number - 1) / self.args.metrics_rate_collect) % self.args.logs_range_collect)
 
-                    if self.args.noise_mask == 'all':
-                        t__noise = np.nanmean(episode_metrics[:, :, :, metrics_i] / self.args.max_episode_len, axis=-1)
-                    elif not self.args.noise_mask == 'none':
-                        t__noise_all = episode_metrics[:, :, :, metrics_i] / self.args.max_episode_len
-                        t__noise         = np.nanmean(t__noise_all[:, :, mask[:, 0].numpy() == 0], axis=-1)
-                        t__noise_special = np.nanmean(t__noise_all[:, :, mask[:, 0].numpy() == 1], axis=-1)
+                        if self.args.noise_mask == 'all':
+                            t__noise = np.nanmean(episode_metrics[:, :, :, metrics_i] / self.args.max_episode_len, axis=-1)
+                        elif not self.args.noise_mask == 'none':
+                            t__noise_all = episode_metrics[:, :, :, metrics_i] / self.args.max_episode_len
+                            t__noise         = np.nanmean(t__noise_all[:, :, mask[:, 0].numpy() == 0], axis=-1)
+                            t__noise_special = np.nanmean(t__noise_all[:, :, mask[:, 0].numpy() == 1], axis=-1)
 
                     t__bench = np.nanmean(benchmark_metrics, axis=-1)
                     with logs_writer.as_default():
@@ -351,15 +349,24 @@ class Experiment(object):
                         tf.summary.scalar("03_metrics/farthest_distance", t__bench[3], step=episode_number)
                         tf.summary.scalar("03_metrics/completion", t__bench[4], step=episode_number)
 
-                    if not self.args.noise_mask == 'none':
-                        with logs_writer.as_default():
-                            # Mean of the last collect_rate episodes, collected on every step
-                            tf.summary.scalar("04_metrics/send_noise_power", t__noise[0, 1], step=episode_number)
-                            tf.summary.scalar("04_metrics/send_signal_power", t__noise[0, 0], step=episode_number)
-                            tf.summary.scalar("04_metrics/recv_noise_power", t__noise[1, 1], step=episode_number)
-                            tf.summary.scalar("04_metrics/recv_signal_power", t__noise[1, 0], step=episode_number)
-                            tf.summary.scalar("04_metrics/send_snr", t__noise[0, 0]/t__noise[0, 1], step=episode_number)
-                            tf.summary.scalar("04_metrics/recv_snr", t__noise[1, 0]/t__noise[1, 1], step=episode_number)
+                        # #TODO HACK COMPLETION GROWTH
+                        if manual_curriculum:
+                            if t__bench[4] > 0.975:
+                                running = False
+                                print(":: :: "+str(t__bench[4]))
+                            else:
+                                print("<> " + str(t__bench[4]))
+
+                    if not ignore_noise_metrics:
+                        if not self.args.noise_mask == 'none':
+                            with logs_writer.as_default():
+                                # Mean of the last collect_rate episodes, collected on every step
+                                tf.summary.scalar("04_metrics/send_noise_power", t__noise[0, 1], step=episode_number)
+                                tf.summary.scalar("04_metrics/send_signal_power", t__noise[0, 0], step=episode_number)
+                                tf.summary.scalar("04_metrics/recv_noise_power", t__noise[1, 1], step=episode_number)
+                                tf.summary.scalar("04_metrics/recv_signal_power", t__noise[1, 0], step=episode_number)
+                                tf.summary.scalar("04_metrics/send_snr", t__noise[0, 0]/t__noise[0, 1], step=episode_number)
+                                tf.summary.scalar("04_metrics/recv_snr", t__noise[1, 0]/t__noise[1, 1], step=episode_number)
 
                         if not self.args.noise_mask == 'all':
                             with logs_writer.as_default():
@@ -370,6 +377,15 @@ class Experiment(object):
                                 tf.summary.scalar("04_metrics/special_recv_signal_power", t__noise_special[1, 0], step=episode_number)
                                 tf.summary.scalar("04_metrics/special_send_snr", t__noise_special[0, 0]/t__noise_special[0, 1], step=episode_number)
                                 tf.summary.scalar("04_metrics/special_recv_snr", t__noise_special[1, 0]/t__noise_special[1, 1], step=episode_number)
+
+                if not running or (self.args.num_episodes is not None and episode_number >= self.args.num_episodes and self.saving_enabled):
+                    if not self.args.evaluate:
+                        saver.save()
+                    print("Training completed:\n\t steps: {}, episodes: {}, time: {}".format(
+                        train_step+1, episode_number, round(time.time() - f_start, 3)))
+                    running = False
+                # End printing
+
 
                 if self.args.noise_mask == 'random':
                     mask = tf.random.shuffle(mask)
