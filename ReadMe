@@ -1,0 +1,27 @@
+Wszystkie komendy mają byc wywoływane z poziomu folderu głównego (z github)
+
+    Wytrenowanie modeli:                                                                      (własna ścieżka)
+        <MACP> .\experiments\experiments\Test5.py --repetitions=6 --intensity=3.0 --save-dir="/tmp/policy/"
+
+    Po zakończonym treningu powtórzyć te które się zcrashowały:                 (przykład typu do powtórzenia) (własna ścieżka)
+        <MACP> .\experiments\experiments\Test8.py --repetitions=1 --intensity=3.0 --integr="10" --save-dir="/tmp/policy/"
+
+    Ręcznie zebrać wszystkie eksperymenty i umieścić je w katalogu w sposób następujący:
+        (pusty katalog o nazwie np. train_exp)
+        |_(s00)                                           (wskazuje na intensity)--v                        v--(wskazuje na typ 00/01/10/11)
+        |   |_ <eksperyment dla 00> (cały folder) np. train_pub-integ-Nbackground-3.0-nocorr-3.0-commnetNone00_20211029-165634
+        |   |_ <eksperyment dla 00>
+        |   |_ ...
+        |_(s01)
+        |   |_ <eksperyment dla 01> (cały folder) np. train_pub-integ-Nbackground-3.0-nocorr-3.0-commnetNone01_20211030-205634
+        |   |_ <eksperyment dla 01>
+        |   |_ ...
+        |_(s10)
+        |   |_ ...
+        |_(s11)
+        |   |_ ...
+
+
+    Testowanie modeli:                                                                                                                                  (własna ścieżka, ta z tym katalogiem powyżej)--v         (własna ścieżka)---v
+        <MACP> .\experiments\experiments\Test7.py --evaluate --num-episodes=1000 --logs-rate-collect=1000 --logs-range-collect=1000 --restore-best --metrics-rate-collect=1 --group-load-dir="/tmp/train_exp/" --group-save-dir="/tmp/exp/"
+
