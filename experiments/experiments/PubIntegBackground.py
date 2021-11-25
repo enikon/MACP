@@ -1,11 +1,15 @@
-from experiments.commnet.commnet_experiment import CommnetExperiment
 import maddpg.common.noise_fn as nfn
 from experiments.commnet.integ_commnet_experiment import IntegCommnetExperiment
 
 
 class PubIntegBackground(IntegCommnetExperiment):
-    def __init__(self, correlation=False, listing=True, intensity=1.0, pub=None):
-        super(PubIntegBackground, self).__init__(name='pub-integ-background-'+str(intensity)+'-'+('corr-' if correlation else 'nocorr-')+(str(intensity))+'-commnet', args={'num_episodes': 60000, 'pub':pub})
+    def __init__(self, correlation=False, listing=True, intensity=1.0, pub=None, integ_mode='11', args=None):
+        _args = {'num_episodes': 60000, 'pub': pub, 'integ_mode': integ_mode}
+        if args is not None:
+            _args.update(args)
+
+        super(PubIntegBackground, self).__init__(name='pub-integ-Nbackground-'+str(intensity)+'-'+('corr-' if correlation else 'nocorr-')+(str(intensity))+'-commnet', args=_args)
+
         self.noise_r_fn = nfn.generate_noise(
             way=nfn.NoiseNames.WAY_ADD,
             type=nfn.NoiseNames.TYPE_ALL,

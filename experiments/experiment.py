@@ -24,7 +24,7 @@ class Experiment(object):
         # Reading parameters #
         ######################
 
-        self.args = self.parser().parse_args()
+        self.args, _ = self.parser().parse_known_args()
 
         t_args = argparse.Namespace()
 
@@ -42,7 +42,7 @@ class Experiment(object):
             t_args.__dict__.update(args)
             print('Used enforced arguments')
 
-        self.args = self.parser().parse_args(namespace=t_args)
+        self.args, _ = self.parser().parse_known_args(namespace=t_args)
 
         #####################
         # Initialise fields #
@@ -385,7 +385,6 @@ class Experiment(object):
                         train_step+1, episode_number, round(time.time() - f_start, 3)))
                     running = False
                 # End printing
-
 
                 if self.args.noise_mask == 'random':
                     mask = tf.random.shuffle(mask)

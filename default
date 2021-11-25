@@ -30,7 +30,8 @@
     "read_units": 256,
     "action_units": 256,
 	"communication_length": 256,
-	"communication_steps": 3,
+	"communication_steps": 1,
+	"integ_mode": "11",
 	"decaying_lr": null,
     "decaying_lr_patience": 5000,
 	"decaying_lr_limit": 0.00001

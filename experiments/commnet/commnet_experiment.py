@@ -9,7 +9,7 @@ class CommnetExperiment(Experiment):
         super(CommnetExperiment, self).__init__(
             self.get_env,
             trainer=trainer,
-            name=name+(str(args['pub']) if args is not None else ''),
+            name=name+(str(args['pub']) if args is not None else '')+str(args['integ_mode']),
             args=args
         )
 
@@ -29,6 +29,7 @@ class CommnetExperiment(Experiment):
         parser.add_argument("--disable-comm", action="store_true", default=False)
         parser.add_argument("--communication-length", type=int, default=256, help="size of the communication vector")
         parser.add_argument("--communication-steps", type=int, default=2, help="number of communication messages sent")
+        parser.add_argument("--integ-mode", default='11', help="00, 01, 10, 11 first bit is on target_q second on policy")
         return parser
 
     def init_loop(self):

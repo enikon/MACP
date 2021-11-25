@@ -40,7 +40,7 @@ class CommnetTrainer(Trainer):
     def get_noise_shape(self):
         return self.actors.noise_shape
 
-    #@tf.function
+    @tf.function
     def action(self, obs, mask, ou_s):
         p = self.actors.act_sample(tf.expand_dims(obs, axis=0), mask, ou_s)[0]
         return p
@@ -60,6 +60,7 @@ class CommnetTrainer(Trainer):
         cct_obs_next = tf.concat(obs_next_n, -1)
 
         ustck_obs = tf.squeeze(tf.concat(tf.unstack(obs_n, axis=-2), -1))
+        ustck_obs_next = tf.squeeze(tf.concat(tf.unstack(obs_next_n, axis=-2), -1))
         ustck_act = tf.squeeze(tf.concat(tf.unstack(act_n, axis=-2), -1))
 
         self.polyak_rate_iterator += 1
@@ -72,7 +73,7 @@ class CommnetTrainer(Trainer):
             target_act_next_a_n = self.target_actors.sample(cct_obs_next, mask)
             target_q_next = self.target_critic.eval1(
                 tf.concat(
-                    (ustck_obs, tf.squeeze(tf.concat(tf.unstack(target_act_next_a_n, axis=-2), -1))),
+                    (ustck_obs_next, tf.squeeze(tf.concat(tf.unstack(target_act_next_a_n, axis=-2), -1))),
                     axis=-1
                 )
             )

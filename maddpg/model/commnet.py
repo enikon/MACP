@@ -4,6 +4,7 @@ import numpy as np
 from maddpg.common.distributions import make_pdtype
 from maddpg.common.tf_util import sample_soft
 
+
 class CNActorController(tf.keras.Model):
     def __init__(self, act_space, n_agents, h_units=256, name="", args=None, **kwargs):
         super().__init__(name="CNActorControllerI" + name + "I")
@@ -36,7 +37,8 @@ class CNActorController(tf.keras.Model):
         self.gru_cell = \
             [tf.keras.layers.GRUCell(self.h_units) for _ in range(self.c_layers)]
 
-        self.decoder = tf.keras.layers.Dense(self.h_units, tf.nn.relu, bias_initializer='random_normal')
+        self.decoder_2 = tf.keras.layers.Dense(self.h_units, tf.nn.relu, bias_initializer='random_normal')
+        self.decoder = tf.keras.layers.Dense(self.h_units/2, tf.nn.relu, bias_initializer='random_normal')
         self.output_layer = tf.keras.layers.Dense(act_space.n, bias_initializer='random_normal')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=args.lr, clipnorm=0.5)
 
@@ -64,6 +66,7 @@ class CNActorController(tf.keras.Model):
             x = self.gru_cell[i](ci_with_noise, states=x)[0]
             x = x + h0
 
+        x = self.decoder_2(x)
         x = self.decoder(x)
         x = self.output_layer(x)
         return x
