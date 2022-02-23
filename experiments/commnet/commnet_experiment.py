@@ -9,7 +9,7 @@ class CommnetExperiment(Experiment):
         super(CommnetExperiment, self).__init__(
             self.get_env,
             trainer=trainer,
-            name=name+(str(args['pub']) if args is not None else '')+str(args['integ_mode']),
+            name=name+(str(args['pub']) if args is not None else '')+str(args['integ_mode']) if 'integ_mode' in args else '',
             args=args
         )
 
@@ -21,7 +21,6 @@ class CommnetExperiment(Experiment):
 
         shape = self.trainers[0].get_noise_shape()
         self.ou_manager = nfn.NoiseManagerOUNoCorrelation(shape)
-
         self.init()
 
     def parser(self):

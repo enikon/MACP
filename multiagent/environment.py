@@ -234,22 +234,23 @@ class MultiAgentEnv(gym.Env):
                 geom = rendering.make_circle(entity.size)
                 xform = rendering.Transform()
                 color = entity.color
-                if 'agent' in entity.name:
-                    if agentcnt == 0:
-                        color = np.array([0.35, 0.35, 0.85])
-                    elif agentcnt == 1:
-                        color = np.array([0.35, 0.85, 0.35])
-                    elif agentcnt == 2:
-                        color = np.array([0.85, 0.35, 0.35])
-                    agentcnt += 1
-                else:
-                    if landmarkcnt == 0:
-                        color = np.array([0.25, 0.25, 0.75])
-                    elif landmarkcnt == 1:
-                        color = np.array([0.25, 0.75, 0.25])
-                    elif landmarkcnt == 2:
-                        color = np.array([0.75, 0.25, 0.25])
-                    landmarkcnt += 1
+                #custom edit
+                # if 'agent' in entity.name:
+                #     if agentcnt == 0:
+                #         color = np.array([0.35, 0.35, 0.85])
+                #     elif agentcnt == 1:
+                #         color = np.array([0.35, 0.85, 0.35])
+                #     elif agentcnt == 2:
+                #         color = np.array([0.85, 0.35, 0.35])
+                #     agentcnt += 1
+                # else:
+                #     if landmarkcnt == 0:
+                #         color = np.array([0.25, 0.25, 0.75])
+                #     elif landmarkcnt == 1:
+                #         color = np.array([0.25, 0.75, 0.25])
+                #     elif landmarkcnt == 2:
+                #         color = np.array([0.75, 0.25, 0.25])
+                #     landmarkcnt += 1
 
                 if 'agent' in entity.name:
                     geom.set_color(*color, alpha=0.5)
@@ -277,6 +278,7 @@ class MultiAgentEnv(gym.Env):
             # update geometry positions
             for e, entity in enumerate(self.world.entities):
                 self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
+                self.render_geoms[e].set_color(*entity.color)
             # render to display or array
             results.append(self.viewers[i].render(return_rgb_array = mode=='rgb_array'))
 

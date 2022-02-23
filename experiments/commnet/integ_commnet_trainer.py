@@ -11,6 +11,9 @@ from maddpg.model.maddpg import Critic
 
 class IntegCommnetTrainer(CommnetTrainer):
 
+    def addOU(self, ou):
+        self.ou = ou
+
     def update(self, agents, experience):
         mask = experience["mask"]
         obs_n = [tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx()) for i in experience["obs_n"]]
@@ -28,30 +31,50 @@ class IntegCommnetTrainer(CommnetTrainer):
         #     tf.convert_to_tensor(i[:,k,:,:], dtype=tf.keras.backend.floatx())
         #     for k in range(i.shape[1])
         #     ] for i in experience["noise_n"] for _ in range(4)]]
-        noise_n_prim = [
-            tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx())
-            for i in experience["noise_n"]]
-        noise_n = [[noise_n_prim for _ in range(4)]]
+
+        if self.args.integ_mode[1] == '2':
+            noise_n_prim = [
+                tf.convert_to_tensor(self.ou[3](i), dtype=tf.keras.backend.floatx())
+                for i in experience["pre_noise_n"]]
+            noise_n = [[noise_n_prim for _ in range(4)]]
+        else:
+            noise_n_prim = [
+                tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx())
+                for i in experience["noise_n"]]
+            noise_n = [[noise_n_prim for _ in range(4)]]
+
+        ######################################
+
+        if self.args.integ_mode[0] == '2':
+            noise_n_next_prim = [
+                tf.convert_to_tensor(self.ou[3](i), dtype=tf.keras.backend.floatx())
+                for i in experience["noise_n"]]
+            noise_n_next = [[noise_n_next_prim for _ in range(4)]]
+        else:
+            noise_n_next_prim = [
+                tf.convert_to_tensor(i, dtype=tf.keras.backend.floatx())
+                for i in experience["noise_n_next"]]
+            noise_n_next = [[noise_n_next_prim for _ in range(4)]]
 
         if self.args.integ_mode == '00':
             update_fn = self._update_00
-        elif self.args.integ_mode == '01':
+        elif self.args.integ_mode == '01' or self.args.integ_mode == '02':
             update_fn = self._update_01
-        elif self.args.integ_mode == '10':
+        elif self.args.integ_mode == '10' or self.args.integ_mode == '20':
             update_fn = self._update_10
-        elif self.args.integ_mode == '11':
-            update_fn = self._update_11
         else:
             update_fn = self._update_11
 
-        q_loss, p_loss, target_q, target_q_next = update_fn(agents, experience, obs_n, act_n, obs_next_n, noise_n, mask)
+        q_loss, p_loss, target_q, target_q_next = update_fn(agents, experience, obs_n, act_n, obs_next_n, noise_n, noise_n_next, mask)
         return np.array([q_loss, p_loss, np.mean(target_q), np.mean(experience["rew"]), np.mean(target_q_next), np.std(target_q)])
 
     @tf.function
-    def _update_11(self, agents, experience, obs_n, act_n, obs_next_n, noise_n, mask):
+    def _update_11(self, agents, experience, obs_n, act_n, obs_next_n, noise_n, noise_n_next, mask):
         cct_obs, cct_act = tf.concat(obs_n, -1), tf.concat(act_n, -1)
         cct_obs_next = tf.concat(obs_next_n, -1)
-        cct_ou_s = noise_n[0] #TODO MULTIPLE TRAINER SUPPORT
+
+        cct_ou_s = noise_n[0]  # TODO MULTIPLE TRAINER SUPPORT
+        cct_ou_s_next = noise_n_next[0]  # TODO MULTIPLE TRAINER SUPPORT
 
         ustck_obs = tf.squeeze(tf.concat(tf.unstack(obs_n, axis=-2), -1))
         ustck_obs_next = tf.squeeze(tf.concat(tf.unstack(obs_next_n, axis=-2), -1))
@@ -64,7 +87,7 @@ class IntegCommnetTrainer(CommnetTrainer):
         target_q_next = None
 
         for i in range(num_sample):
-            target_act_next_a_n = self.target_actors.integ_sample(cct_obs_next, mask, cct_ou_s)
+            target_act_next_a_n = self.target_actors.integ_sample(cct_obs_next, mask, cct_ou_s_next)
             target_q_next = self.target_critic.eval1(
                 tf.concat(
                     (ustck_obs_next, tf.squeeze(tf.concat(tf.unstack(target_act_next_a_n, axis=-2), -1))),
@@ -100,10 +123,9 @@ class IntegCommnetTrainer(CommnetTrainer):
         return q_loss, p_loss, target_q, target_q_next
 
     @tf.function
-    def _update_00(self, agents, experience, obs_n, act_n, obs_next_n, noise_n, mask):
+    def _update_00(self, agents, experience, obs_n, act_n, obs_next_n, noise_n, noise_n_next, mask):
         cct_obs, cct_act = tf.concat(obs_n, -1), tf.concat(act_n, -1)
         cct_obs_next = tf.concat(obs_next_n, -1)
-        cct_ou_s = noise_n[0]  # TODO MULTIPLE TRAINER SUPPORT
 
         ustck_obs = tf.squeeze(tf.concat(tf.unstack(obs_n, axis=-2), -1))
         ustck_obs_next = tf.squeeze(tf.concat(tf.unstack(obs_next_n, axis=-2), -1))
@@ -153,9 +175,10 @@ class IntegCommnetTrainer(CommnetTrainer):
         return q_loss, p_loss, target_q, target_q_next
 
     @tf.function
-    def _update_01(self, agents, experience, obs_n, act_n, obs_next_n, noise_n, mask):
+    def _update_01(self, agents, experience, obs_n, act_n, obs_next_n, noise_n, noise_n_next, mask):
         cct_obs, cct_act = tf.concat(obs_n, -1), tf.concat(act_n, -1)
         cct_obs_next = tf.concat(obs_next_n, -1)
+
         cct_ou_s = noise_n[0]  # TODO MULTIPLE TRAINER SUPPORT
 
         ustck_obs = tf.squeeze(tf.concat(tf.unstack(obs_n, axis=-2), -1))
@@ -206,10 +229,10 @@ class IntegCommnetTrainer(CommnetTrainer):
         return q_loss, p_loss, target_q, target_q_next
 
     @tf.function
-    def _update_10(self, agents, experience, obs_n, act_n, obs_next_n, noise_n, mask):
+    def _update_10(self, agents, experience, obs_n, act_n, obs_next_n, noise_n, noise_n_next, mask):
         cct_obs, cct_act = tf.concat(obs_n, -1), tf.concat(act_n, -1)
         cct_obs_next = tf.concat(obs_next_n, -1)
-        cct_ou_s = noise_n[0]  # TODO MULTIPLE TRAINER SUPPORT
+        cct_ou_s_next = noise_n_next[0]  # TODO MULTIPLE TRAINER SUPPORT
 
         ustck_obs = tf.squeeze(tf.concat(tf.unstack(obs_n, axis=-2), -1))
         ustck_obs_next = tf.squeeze(tf.concat(tf.unstack(obs_next_n, axis=-2), -1))
@@ -222,7 +245,7 @@ class IntegCommnetTrainer(CommnetTrainer):
         target_q_next = None
 
         for i in range(num_sample):
-            target_act_next_a_n = self.target_actors.integ_sample(cct_obs_next, mask, cct_ou_s)
+            target_act_next_a_n = self.target_actors.integ_sample(cct_obs_next, mask, cct_ou_s_next)
             target_q_next = self.target_critic.eval1(
                 tf.concat(
                     (ustck_obs_next, tf.squeeze(tf.concat(tf.unstack(target_act_next_a_n, axis=-2), -1))),
@@ -257,3 +280,4 @@ class IntegCommnetTrainer(CommnetTrainer):
             update_target(self.critic, self.target_critic)
 
         return q_loss, p_loss, target_q, target_q_next
+

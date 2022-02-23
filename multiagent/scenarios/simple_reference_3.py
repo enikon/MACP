@@ -1,4 +1,4 @@
-from multiagent.scenarios.commons import *
+from multiagent.scenarios.arch.commons import *
 from multiagent.scenario import BaseScenario
 
 
@@ -11,7 +11,20 @@ class Scenario(BaseScenario):
         num_landmarks = 3
         world.collaborative = True
 
-        world_definition(world, num_agents, num_landmarks)
+        world.agents = [Agent() for i in range(num_agents)]
+        for i, agent in enumerate(world.agents):
+            agent.name = 'agent %d' % i
+            agent.index = i
+            agent.collide = True
+            agent.silent = True
+            agent.size = 0.15
+
+        world.landmarks = [Landmark() for i in range(num_landmarks)]
+        for i, landmark in enumerate(world.landmarks):
+            landmark.name = 'landmark %d' % i
+            landmark.index = i
+            landmark.collide = False
+            landmark.movable = False
 
         self.reset_world(world)
         return world
@@ -49,7 +62,43 @@ class Scenario(BaseScenario):
         return [rew, collisions, occupied_landmarks, max_dists, 1 if occupied_landmarks == len(world.landmarks) else 0]
 
     def reset_world(self, world):
-        world_reset(world)
+        # random properties for agents
+        for i, agent in enumerate(world.agents):
+            if i == 0:
+                agent.color = np.array([0.35, 0.35, 0.85])
+            elif i == 1:
+                agent.color = np.array([0.35, 0.85, 0.35])
+            elif i == 2:
+                agent.color = np.array([0.85, 0.35, 0.35])
+
+        # random properties for landmarks
+        for i, landmark in enumerate(world.landmarks):
+            if i == 0:
+                landmark.color = np.array([0.25, 0.25, 0.75])
+            elif i == 1:
+                landmark.color = np.array([0.25, 0.75, 0.25])
+            elif i == 2:
+                landmark.color = np.array([0.75, 0.25, 0.25])
+
+        # set random initial states
+        for i, agent in enumerate(world.agents):
+            n = True
+            while n:
+                agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+                agent.state.p_vel = np.zeros(world.dim_p)
+                agent.state.c = np.zeros(world.dim_c)
+                n = False
+                for j in range(i):
+                    n = n or point_dist(agent, world.agents[j]) < world.agents[0].size
+
+        for i, landmark in enumerate(world.landmarks):
+            n = True
+            while n:
+                landmark.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+                landmark.state.p_vel = np.zeros(world.dim_p)
+                n = False
+                for j in range(i):
+                    n = n or point_dist(landmark, world.landmarks[j]) < world.agents[0].size
 
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
@@ -66,14 +115,9 @@ class Scenario(BaseScenario):
                 entity_pos.append(agent.state.p_pos - agent.state.p_pos)
             else:
                 entity_pos.append(entity.state.p_pos - agent.state.p_pos)
-        # entity colors
-        entity_color = []
-        for entity in world.landmarks:  # world.entities:
-            entity_color.append(entity.color)
-        # communication of all other agents
-        comm = []
+
         other_pos = []
         for other in world.agents:
-            comm.append(other.state.c)
             other_pos.append(other.state.p_pos - agent.state.p_pos)
-        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + comm)
+
+        return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)

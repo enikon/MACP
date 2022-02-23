@@ -235,6 +235,8 @@ class Experiment(object):
             if not self.args.evaluate:
                 self.collect_experience(obs_n, action_n, np.array(rew_n).astype(np.float32), new_obs_n,
                                         np.array(done_n).astype(np.float32), terminal, mask)
+            else:
+                self.no_collect_experience() #updates ou
 
             if episode_number % self.args.metrics_rate_collect == 0 and self.saving_enabled:
                 metrics_i = int((episode_number / self.args.metrics_rate_collect) % self.args.logs_range_collect)
@@ -552,6 +554,9 @@ class Experiment(object):
         raise NotImplemented()
 
     def collect_experience(self, obs_n, action_n, rew_n, new_obs_n, done_n, terminal, mask):
+        raise NotImplemented()
+
+    def no_collect_experience(self):
         raise NotImplemented()
 
     def train_experience(self, buffer):

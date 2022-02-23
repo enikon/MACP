@@ -14,29 +14,45 @@ def world_definition(world, num_agents, num_landmarks):
         agent.collide = True
         agent.silent = True
         agent.size = 0.15
-    # add landmarks
+
     world.landmarks = [Landmark() for i in range(num_landmarks)]
     for i, landmark in enumerate(world.landmarks):
         landmark.name = 'landmark %d' % i
         landmark.index = i
         landmark.collide = False
         landmark.movable = False
-    # make initial conditions
 
 
 def world_reset(world):
     # random properties for agents
     for i, agent in enumerate(world.agents):
-        agent.color = np.array([0.35, 0.35, 0.85])
+        if i == 0:
+            agent.color = np.array([0.35, 0.35, 0.85])
+        elif i == 1:
+            agent.color = np.array([0.35, 0.85, 0.35])
+        elif i == 2:
+            agent.color = np.array([0.85, 0.35, 0.35])
+
     # random properties for landmarks
     for i, landmark in enumerate(world.landmarks):
-        landmark.color = np.array([0.25, 0.25, 0.25])
+        if i == 0:
+            landmark.color = np.array([0.25, 0.25, 0.75])
+        elif i == 1:
+            landmark.color = np.array([0.25, 0.75, 0.25])
+        elif i == 2:
+            landmark.color = np.array([0.75, 0.25, 0.25])
 
     # set random initial states
-    for agent in world.agents:
-        agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
-        agent.state.p_vel = np.zeros(world.dim_p)
-        agent.state.c = np.zeros(world.dim_c)
+    for i, agent in enumerate(world.agents):
+        n = True
+        while n:
+            agent.state.p_pos = np.random.uniform(-1, +1, world.dim_p)
+            agent.state.p_vel = np.zeros(world.dim_p)
+            agent.state.c = np.zeros(world.dim_c)
+            n = False
+            for j in range(i):
+                n = n or point_dist(agent, world.agents[j]) < world.agents[0].size
+
     for i, landmark in enumerate(world.landmarks):
         n = True
         while n:
@@ -45,6 +61,7 @@ def world_reset(world):
             n = False
             for j in range(i):
                 n = n or point_dist(landmark, world.landmarks[j]) < world.agents[0].size
+
 
 
 def point_dist(a1, a2):

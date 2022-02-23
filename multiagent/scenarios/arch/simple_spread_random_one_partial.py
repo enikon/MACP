@@ -1,10 +1,7 @@
 import random
-import itertools
 
-import numpy as np
-from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
-from multiagent.scenarios.commons import *
+from multiagent.scenarios.arch.commons import *
 
 
 class Scenario(BaseScenario):

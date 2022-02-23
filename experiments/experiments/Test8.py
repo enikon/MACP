@@ -9,5 +9,5 @@ if __name__ == "__main__":
     args, _ = parser.parse_known_args()
 
     for _ in range(args.repetitions):
-        PubIntegBackground(correlation=False, listing=True, pub='None', integ_mode=args.integr, intensity=args.intensity)
+        PubIntegBackground(correlation=False, listing=True, pub='None', integ_mode=args.integr, intensity=args.intensity, args=args)
 

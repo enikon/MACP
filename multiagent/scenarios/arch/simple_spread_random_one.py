@@ -1,6 +1,6 @@
 import random
-from multiagent.scenarios.commons import *
-from multiagent.scenarios.simple_spread import Scenario as S
+from multiagent.scenarios.arch.commons import *
+from multiagent.scenarios.arch.simple_spread import Scenario as S
 
 
 class Scenario(S):

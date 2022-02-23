@@ -1,4 +1,4 @@
-from multiagent.scenarios.commons import *
+from multiagent.scenarios.arch.commons import *
 from multiagent.scenarios.simple_reference_3 import Scenario as S
 
 

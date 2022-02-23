@@ -142,6 +142,9 @@ class NoiseOUManager(object):
         self.noise_get = noise_list[sgi], noise_list[svi], noise_list[rgi], noise_list[rvi]
         self.noise_list = noise_list
 
+    def pre_get(self):
+        return self.noise_get[0].pre_state, self.noise_get[1].pre_state, self.noise_get[2].pre_state, self.noise_get[3].pre_state
+
     def get(self):
         return self.noise_get[0].state, self.noise_get[1].state, self.noise_get[2].state, self.noise_get[3].state
 
@@ -161,27 +164,39 @@ class NoiseOU(object):
         self.shape = shape
         self.alpha = alpha
         self.state = None
+        self.pre_state = None
         self.range = init_range
 
     def reset(self):
         self.state = [tf.random.uniform(i, minval=self.range[0], maxval=self.range[1]) for i in self.shape]
+        self.pre_state = self.state
 
     def update(self):
+        self.pre_state = self.state
         self.state = [
-            self.state[i] + self.alpha * tf.random.uniform(self.shape[i], minval=-1, maxval=1) for i in len(self.state)
+            self.pre_state[i] + self.alpha * tf.random.uniform(self.shape[i], minval=-1, maxval=1) for i in self.shape
         ]
+
+    def simulate(self, state):
+        [state[i] + self.alpha * tf.random.uniform(self.shape[i], minval=-1, maxval=1) for i in self.shape]
 
 
 class NoiseUniform(object):
     def __init__(self, shape):
         self.shape = shape
         self.state = None
+        self.pre_state = None
 
     def reset(self):
         self.state = [tf.random.uniform(i) for i in self.shape]
+        self.pre_state = self.state
 
     def update(self):
+        self.pre_state = self.state
         self.state = [tf.random.uniform(i) for i in self.shape]
+
+    def simulate(self, state):
+        return [tf.random.uniform(i) for i in self.shape]
 
 
 class NoiseManagerOUNoCorrelation(NoiseOUManager):
